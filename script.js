@@ -216,23 +216,20 @@
     }
   }
 
-     function toggleTheme() {
-    const current = localStorage.getItem("uiTheme") || "light";
-    const next = current === "light" ? "dark" : "light";
-    localStorage.setItem("uiTheme", next);
-    applyThemeAndStyle();
+function toggleTheme() {
+  const current = localStorage.getItem("uiTheme") || "light";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem("uiTheme", next);
+  applyThemeAndStyle();
 
-    if (window.EveAssistant && typeof EveAssistant.showMsg === 'function') {
-      const reaction = next === 'dark'
-        ? "Did the lights turn off?"
-        : "Oh, wow nice it went back.";
-      EveAssistant.showMsg(reaction);
-    }
-    if (window.EveAssistant && typeof EveAssistant.react === 'function') {
-      // smile for light, look up for dark
-      EveAssistant.react(next === 'light' ? 'smile' : 'lookup');
-    }
+  if (window.EveAssistant && typeof EveAssistant.showMsg === 'function') {
+    const text = next === 'dark'
+      ? "Did the lights turn off?"
+      : "Oh look! The light came back!";
+    const reaction = next === 'light' ? 'smile' : 'lookup';
+    EveAssistant.showMsg(text, false, reaction);   // ← smile on light, lookup on dark
   }
+}
   window.addEventListener("DOMContentLoaded", applyThemeAndStyle);
 
   /* =========================================================================
@@ -329,7 +326,7 @@ if (addAllDesc) addAllDesc.innerHTML = `Select which ${lbl("year levels").toLowe
 
 // Student input placeholder
 const newStudentInput = document.getElementById('new-student-name');
-if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.g. Juan Dela Cruz";
+if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNISAN" : "e.g. Gon Freecs";
     // Nav visibility
   const cashbookNav = document.getElementById("nav-cashbook");
   const classfundNav = document.getElementById("nav-classfund");
@@ -1142,25 +1139,39 @@ async function exportClassFundWeeklyCSV() {
     eveAlert("Collection Added!");
   }
 
-  function renameCategory() {
-    const newNameRaw = prompt(`Rename "${currentCategory}" to:`, currentCategory);
-    if (newNameRaw === null) return;
-    const newName = newNameRaw.trim();
+function renameCategory() {
+  document.getElementById("rename-old-name").innerText = currentCategory;
+  document.getElementById("rename-input").value = currentCategory;
+  document.getElementById("rename-error").innerText = "";
+  document.getElementById("rename-modal").classList.remove("hidden");
+  document.getElementById("rename-input").focus();
+}
 
-    if (!newName) return eveAlert("Name cannot be empty.");
-    if (newName === currentCategory) return;
+function closeRenameModal() {
+  document.getElementById("rename-modal").classList.add("hidden");
+}
 
-    if (newName.toLowerCase() !== currentCategory.toLowerCase() && findCategoryKeyCI(newName)) {
-      return eveAlert("A collection with that name already exists.");
-    }
+function confirmRenameCategory() {
+  const newNameRaw = document.getElementById("rename-input").value;
+  const errorEl = document.getElementById("rename-error");
+  const newName = newNameRaw.trim();
 
-    db.categories[newName] = db.categories[currentCategory];
-    delete db.categories[currentCategory];
-    currentCategory = newName;
-    saveData();
-    document.getElementById("item-view-title").innerText = newName.toUpperCase();
-    renderItemList();
+  if (!newName) { errorEl.innerText = "Name cannot be empty."; return; }
+  if (newName === currentCategory) { closeRenameModal(); return; }
+
+  if (newName.toLowerCase() !== currentCategory.toLowerCase() && findCategoryKeyCI(newName)) {
+    errorEl.innerText = "A collection with that name already exists.";
+    return;
   }
+
+  db.categories[newName] = db.categories[currentCategory];
+  delete db.categories[currentCategory];
+  currentCategory = newName;
+  saveData();
+  document.getElementById("item-view-title").innerText = newName.toUpperCase();
+  renderItemList();
+  closeRenameModal();
+}
 
   function filterCategories() {
     const input = document.getElementById("category-search").value.toLowerCase();
@@ -1562,114 +1573,144 @@ function deselectAllAddAll() {
     }
   }
 
-  function renderItemList() {
-    const catObj = db.categories[currentCategory];
-    const box = document.getElementById("item-list");
-    const searchTerm = (document.getElementById("item-search").value || "").toLowerCase();
+function renderItemList() {
+  const catObj = db.categories[currentCategory];
+  const box = document.getElementById("item-list");
+  const searchTerm = (document.getElementById("item-search").value || "").toLowerCase();
 
-    const totalDue = catObj.records.reduce((s, r) => s + r.due, 0);
-    const totalPaid = catObj.records.reduce((s, r) => s + r.paid, 0);
-    const totalBalance = round2(totalDue - totalPaid);
+  const totalDue = catObj.records.reduce((s, r) => s + r.due, 0);
+  const totalPaid = catObj.records.reduce((s, r) => s + r.paid, 0);
+  const totalBalance = round2(totalDue - totalPaid);
 
-    document.getElementById("item-summary").innerHTML = `
-      Collected <b>${peso(totalPaid)}</b> &nbsp;|&nbsp;
-      Expected <b>${peso(totalDue)}</b> &nbsp;|&nbsp;
-      Balance <b style="color:${totalBalance > 0 ? '#B3423B' : '#2F7D53'}">${peso(totalBalance)}</b>
-    `;
+  document.getElementById("item-summary").innerHTML = `
+    Collected <b>${peso(totalPaid)}</b> &nbsp;|&nbsp;
+    Expected <b>${peso(totalDue)}</b> &nbsp;|&nbsp;
+    Balance <b style="color:${totalBalance > 0 ? '#B3423B' : '#2F7D53'}">${peso(totalBalance)}</b>
+  `;
 
-        if (catObj.records.length === 0) {
-      box.innerHTML = `<p class="note">No ${lbl("year level").toLowerCase()} added to this collection yet. Use "${lbl("Add All Year Level")}" above, or record a payment from the ADD tab.</p>`;
-      return;
-    }
-    const sorted = [...catObj.records]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .filter(r => r.name.toLowerCase().includes(searchTerm));
+  if (catObj.records.length === 0) {
+    box.innerHTML = `<p class="note">No ${lbl("year level").toLowerCase()} added to this collection yet. Use "${lbl("Add All Year Level")}" above, or record a payment from the ADD tab.</p>`;
+    return;
+  }
 
-    if (sorted.length === 0) {
-      box.innerHTML = `<p class="note">No matching student.</p>`;
-      return;
-    }
+  const sorted = [...catObj.records]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(r => r.name.toLowerCase().includes(searchTerm));
 
-    box.innerHTML = sorted.map(rec => {
-      const idx = catObj.records.indexOf(rec);
-      const balance = round2(rec.due - rec.paid);
-      let statusLabel, statusColor;
-      if (balance < 0) { statusLabel = "OVERPAID"; statusColor = "#3B6E8F"; }
-      else if (balance === 0) { statusLabel = "PAID"; statusColor = "#2F7D53"; }
-      else if (rec.paid > 0) { statusLabel = "PARTIAL"; statusColor = "#B8872F"; }
-      else { statusLabel = "UNPAID"; statusColor = "#B3423B"; }
+  if (sorted.length === 0) {
+    box.innerHTML = `<p class="note">No matching student.</p>`;
+    return;
+  }
 
-      if (editingIndex === idx) {
-        const historyHtml = rec.history.length
-          ? rec.history.map((h, hIdx) => `
-              <div class="history-entry">
-                <span>${peso(h.amount)} on ${esc(h.date)}${h.note ? ' • ' + esc(h.note) : ''}</span>
-                <div class="history-actions">
-                  <button class="mini-btn" data-action="edit-hist" data-rec="${idx}" data-hist="${hIdx}">EDIT</button>
-                  <button class="mini-btn mini-delete" data-action="del-hist" data-rec="${idx}" data-hist="${hIdx}">DEL</button>
-                </div>
-              </div>`).join("")
-          : `<div class="note">No payments logged yet.</div>`;
+  // Safety reset if the stored index is now out of bounds
+  if (editingIndex !== null && (editingIndex < 0 || editingIndex >= catObj.records.length)) {
+    editingIndex = null;
+  }
 
-              return `
-          <div class="item-row editing" id="item-${idx}">
-            <b>${esc(rec.name)}</b>
-            <div class="edit-note">
-              💡 <b>Tip:</b> You can edit <b>Amount Due</b> and <b>Total Paid</b> directly, or use <b>Add Payment</b> to log a new installment. Deleting a history entry recalculates the total automatically.
-            </div>
-            
-            <input type="number" id="edit-due-${idx}" value="${rec.due}" step="0.01" placeholder="Amount Due">
-            <input type="number" id="edit-paid-${idx}" value="${rec.paid}" step="0.01" placeholder="Total Paid">
-            <input type="text" id="edit-note-${idx}" value="${esc(rec.note || '')}" placeholder="Note / remarks (optional)">
-            <div class="row" style="margin-bottom:0;">
-              <input type="number" id="quick-pay-${idx}" placeholder="Add new payment">
-              <button class="btn-save" data-action="quick-pay" data-idx="${idx}">ADD PAYMENT</button>
-            </div>
-            <div class="history-box">
-              <p class="note"><b>Payment History:</b> (editing/deleting an entry recalculates Total Paid)</p>
-              ${historyHtml}
-            </div>
-            <div class="item-actions">
-              <button class="btn-save" data-action="save-edit" data-idx="${idx}">SAVE</button>
-              <button class="btn-delete-item" data-action="delete-item" data-idx="${idx}">REMOVE FROM LIST</button>
-              <button class="btn-cancel" data-action="cancel-edit">CANCEL</button>
-            </div>
-          </div>`;
-      }
+  box.innerHTML = sorted.map(rec => {
+    const idx = catObj.records.indexOf(rec);
+    const balance = round2(rec.due - rec.paid);
+    let statusLabel, statusColor;
+    if (balance < 0) { statusLabel = "OVERPAID"; statusColor = "#3B6E8F"; }
+    else if (balance === 0) { statusLabel = "PAID"; statusColor = "#2F7D53"; }
+    else if (rec.paid > 0) { statusLabel = "PARTIAL"; statusColor = "#B8872F"; }
+    else { statusLabel = "UNPAID"; statusColor = "#B3423B"; }
+
+    if (editingIndex === idx) {
+      const historyHtml = rec.history.length
+        ? rec.history.map((h, hIdx) => `
+            <div class="history-entry">
+              <span>${peso(h.amount)} on ${esc(h.date)}${h.note ? ' • ' + esc(h.note) : ''}</span>
+              <div class="history-actions">
+                <button class="mini-btn" data-action="edit-hist" data-rec="${idx}" data-hist="${hIdx}">EDIT</button>
+                <button class="mini-btn mini-delete" data-action="del-hist" data-rec="${idx}" data-hist="${hIdx}">DEL</button>
+              </div>
+            </div>`).join("")
+        : `<div class="note">No payments logged yet.</div>`;
 
       return `
-        <div class="item-row" data-action="edit-item" data-idx="${idx}">
-          <div><b>${esc(rec.name)}</b><br><span class="note">Paying: ${peso(rec.paid)}</span></div>
-          <div style="text-align:right;">
-            <span style="color:${statusColor}; font-weight:900;">${peso(balance)}</span><br>
-            <span class="note" style="color:${statusColor};">${statusLabel}</span>
+        <div class="item-row editing" id="item-${idx}">
+          <b>${esc(rec.name)}</b>
+          <div class="edit-note">
+            💡 <b>Tip:</b> You can edit <b>Amount Due</b> and <b>Total Paid</b> directly, or use <b>Add Payment</b> to log a new installment. Deleting a history entry recalculates the total automatically.
+          </div>
+          
+          <input type="number" id="edit-due-${idx}" value="${rec.due}" step="0.01" placeholder="Amount Due">
+          <input type="number" id="edit-paid-${idx}" value="${rec.paid}" step="0.01" placeholder="Total Paid">
+          <input type="text" id="edit-note-${idx}" value="${esc(rec.note || '')}" placeholder="Note / remarks (optional)">
+          <div class="row" style="margin-bottom:0;">
+            <input type="number" id="quick-pay-${idx}" placeholder="Add new payment">
+            <button class="btn-save" data-action="quick-pay" data-idx="${idx}">ADD PAYMENT</button>
+          </div>
+          <div class="history-box">
+            <p class="note"><b>Payment History:</b> (editing/deleting an entry recalculates Total Paid)</p>
+            ${historyHtml}
+          </div>
+          <div class="item-actions">
+            <button class="btn-save" data-action="save-edit" data-idx="${idx}">SAVE</button>
+            <button class="btn-delete-item" data-action="delete-item" data-idx="${idx}">REMOVE FROM LIST</button>
+            <button class="btn-cancel" data-action="cancel-edit">CANCEL</button>
           </div>
         </div>`;
-    }).join("");
+    }
 
-    // Attach event listeners
-    box.querySelectorAll('[data-action="edit-item"]').forEach(el => {
-      el.addEventListener('click', () => editItem(parseInt(el.dataset.idx, 10)));
-    });
-    box.querySelectorAll('[data-action="quick-pay"]').forEach(el => {
-      el.addEventListener('click', () => quickPay(parseInt(el.dataset.idx, 10)));
-    });
-    box.querySelectorAll('[data-action="save-edit"]').forEach(el => {
-      el.addEventListener('click', () => saveItemEdit(parseInt(el.dataset.idx, 10)));
-    });
-    box.querySelectorAll('[data-action="delete-item"]').forEach(el => {
-      el.addEventListener('click', () => deleteItem(parseInt(el.dataset.idx, 10)));
-    });
-    box.querySelectorAll('[data-action="cancel-edit"]').forEach(el => {
-      el.addEventListener('click', cancelEdit);
-    });
-    box.querySelectorAll('[data-action="edit-hist"]').forEach(el => {
-      el.addEventListener('click', () => editHistoryEntry(parseInt(el.dataset.rec, 10), parseInt(el.dataset.hist, 10)));
-    });
-    box.querySelectorAll('[data-action="del-hist"]').forEach(el => {
-      el.addEventListener('click', () => deleteHistoryEntry(parseInt(el.dataset.rec, 10), parseInt(el.dataset.hist, 10)));
-    });
-  }
+    return `
+      <div class="item-row" data-action="edit-item" data-idx="${idx}">
+        <div><b>${esc(rec.name)}</b><br><span class="note">Paying: ${peso(rec.paid)}</span></div>
+        <div style="text-align:right;">
+          <span style="color:${statusColor}; font-weight:900;">${peso(balance)}</span><br>
+          <span class="note" style="color:${statusColor};">${statusLabel}</span>
+        </div>
+      </div>`;
+  }).join("");
+
+/* ── SINGLE CONTAINER CLICK HANDLER ── */
+  box.onclick = function (e) {
+    const actionEl = e.target.closest('[data-action]');
+    if (!actionEl) return; // clicked on empty space / inputs / text
+
+    const action = actionEl.dataset.action;
+
+    // Tap a student row to enter edit mode
+    if (action === 'edit-item') {
+      e.stopPropagation();
+      editItem(parseInt(actionEl.dataset.idx, 10));
+      return;
+    }
+
+    // Everything below is a button inside the editing form
+    e.stopPropagation();
+
+    // Cancel has no data-idx/data-rec, so it must be handled before the idx parse below
+    if (action === 'cancel-edit') {
+      cancelEdit();
+      return;
+    }
+
+    const idx = parseInt(actionEl.dataset.idx || actionEl.dataset.rec, 10);
+    if (isNaN(idx)) return;
+
+    const histIdx = parseInt(actionEl.dataset.hist, 10);
+
+    switch (action) {
+      case 'quick-pay':
+        quickPay(idx);
+        break;
+      case 'save-edit':
+        saveItemEdit(idx);
+        break;
+      case 'delete-item':
+        deleteItem(idx);
+        break;
+      case 'edit-hist':
+        editHistoryEntry(idx, histIdx);
+        break;
+      case 'del-hist':
+        deleteHistoryEntry(idx, histIdx);
+        break;
+    }
+  };
+}
 
   function editItem(index) {
     editingIndex = index;
@@ -2582,16 +2623,17 @@ function deselectAllAddAll() {
   const BUBBLE_GRACE_MS = 300;     // ← NEW
 
   const IDLE_TIPS = [
-    `💡 Try Dark mode or Cyberpunk style in the top bar!`,
+    `💡 Try Dark mode in the top bar!`,
     `💡 All data stays offline. Back it up regularly!`,
     `💡 Switch between Org and Class mode anytime.`,
+    `💡 Am I annoying? Tap the green button below.`,
     `💡 Export CSVs from any collection for easy reporting.`,
     `💡 Set an Opening Balance in Cashbook for accurate statements.`,
+    `💡 Deleting a classfund payment history also deletes its transaction.`,
     `💡 Tap a student's card in Records to edit their due or paid amount directly.`,
     `💡 Use the search box in any tab to filter long lists instantly.`,
     `💡 Link Cash Book transactions to Projects for auto-generated liquidation reports.`,
     `💡 In Class mode, set the weekly due and start date before recording payments.`,
-    `💡 The PIN lock only works in the built Android app — test in browser first!`,
     `💡 Forgot your PIN? Use your device's Activation Code to reset it safely.`,
     `💡 Add all students to a collection at once with the "Add All" button.`,
     `💡 Student payments recorded in the ADD tab automatically sync to the Cash Book.`,
@@ -2599,7 +2641,6 @@ function deselectAllAddAll() {
     `💡 Keep your backup JSON file safe — it contains all your records!`,
     `💡 Use OR / Voucher numbers in Cash Book for easier tracking during audits.`,
     `💡 Rename a collection anytime by opening it and tapping "Rename".`,
-    `💡 Tap EVE's head to cycle through urgent reminders and helpful tips.`,
     `💡 Your data lives in this browser only — clearing cache will erase everything!`,
     `💡 The Activation Code locks this app to your device. It won't work on another phone.`,
     `💡 Switching from Org to Class mode relabels every button and header automatically.`,
@@ -2609,7 +2650,6 @@ function deselectAllAddAll() {
     `💡 Class Fund tracks missed weeks automatically once you set a start date.`,
     `💡 You can print the Financial Statement directly — it hides the rest of the page automatically.`,
     `💡 The A-Z index on the right of Collections lets you jump to any letter instantly.`,
-    `💡 Cyberpunk mode isn't just dark — it adds neon glows, mono fonts, and restyles everything.`,
     `💡 Collection names are case-insensitive, so "Field Trip" and "field trip" are treated as the same.`,
     `💡 Tap any student name in the Database tab to see their balance across every collection.`
   ];
@@ -2633,27 +2673,44 @@ function deselectAllAddAll() {
     ambientTimer = setTimeout(ambientBehavior, Math.random() * 500 + 600);
   }
 
-    function triggerJump(reactionType) {
+  function triggerJump(reactionType) {
     if (isInteracting) return;
     isInteracting = true;
     clearTimeout(ambientTimer);
     allEyes.forEach(eye => eye.classList.remove('blink'));
     eveHead.classList.add('is-stretching');
 
-    // 'lookup' = eyes glide up and glow. anything else = default smile.
     const reactionClass = reactionType === 'lookup' ? 'is-looking-up' : 'is-smiling';
 
     setTimeout(() => { eveHead.classList.add(reactionClass); }, 250);
     setTimeout(() => {
       eveHead.classList.remove('is-stretching', reactionClass);
-      setTimeout(() => {
-        isInteracting = false;
-        currentTransform = "translate(0px, 0px)";
-        ambientBehavior();
-      }, 200);
+
+      if (reactionType === 'lookup') {
+        /* ---- "nevermind" side-to-side eye dart ---- */
+        allEyes.forEach(eye => {
+          eye.style.transform = '';
+          eye.classList.add('is-neverminding');
+        });
+        setTimeout(() => {
+          allEyes.forEach(eye => {
+            eye.classList.remove('is-neverminding');
+            eye.style.transform = '';
+          });
+          isInteracting = false;
+          currentTransform = "translate(0px, 0px)";
+          ambientBehavior();
+        }, 500);
+      } else {
+        setTimeout(() => {
+          isInteracting = false;
+          currentTransform = "translate(0px, 0px)";
+          ambientBehavior();
+        }, 200);
+      }
     }, 1200);
   }
-
+  
   function buildQueue() {
     const queue = [];
     const mode = (typeof getMode === 'function') ? getMode() : '';
@@ -2765,48 +2822,58 @@ function deselectAllAddAll() {
     }
   }
 
-  function runIdleCycle() {
-    idleCycleTimer = null;
-    if (!idleCycleActive) return;
-    if (isInteracting || (speechBubble && speechBubble.classList.contains('show'))) {
-      idleCycleTimer = setTimeout(runIdleCycle, 5000);
-      return;
-    }
-    const tip = IDLE_TIPS[idleTipIndex % IDLE_TIPS.length];
-    idleTipIndex++;
-    renderBubble({ text: tip });
-    idleCycleTimer = setTimeout(() => dismiss(), 5000);
-  }
+function runIdleCycle() {
+  idleCycleTimer = null;
+  // Idle tips disabled — EVE only speaks when tapped or on alerts
+}
 
   function pauseIdleCycle() {
     clearTimeout(idleCycleTimer);
     idleCycleTimer = null;
   }
 
-  function toggleEveIdle() {
-    idleCycleActive = !idleCycleActive;
-    const btn = document.getElementById('eve-idle-toggle');
-    if (btn) {
-      btn.classList.toggle('stopped', !idleCycleActive);
-      btn.classList.toggle('running', idleCycleActive);
-      btn.title = idleCycleActive ? 'Idle tips running — tap to stop' : 'Idle tips paused — tap to resume';
-    }
-    if (idleCycleActive) {
-      runIdleCycle();
-    } else {
-      clearTimeout(idleCycleTimer);
-      idleCycleTimer = null;
-      if (speechBubble && speechBubble.classList.contains('show') && !msgQueue[msgIndex]?.action) dismiss();
-    }
+function toggleEveIdle() {
+  idleCycleActive = !idleCycleActive;
+  const btn = document.getElementById('eve-idle-toggle');
+  const zipper = document.getElementById('eveZipper');
+  const bot   = document.getElementById('eveBot');   // ← ADD THIS LINE
+
+  if (btn) {
+    btn.classList.toggle('stopped', !idleCycleActive);
+    btn.classList.toggle('running', idleCycleActive);
+    btn.title = idleCycleActive ? 'Idle tips running — tap to stop' : 'Idle tips paused — tap to resume';
   }
 
+  /* ── NEW: shrink EVE into the button or pop her back out ── */
+  if (bot) {
+    bot.classList.toggle('eve-silenced', !idleCycleActive);
+  }
+
+  /* ---- brief zipper flash, then back to normal ---- */
+  if (zipper) {
+    zipper.classList.remove('zipping', 'unzipping');
+    void zipper.offsetWidth; // force reflow
+    zipper.classList.add(!idleCycleActive ? 'zipping' : 'unzipping');
+    setTimeout(() => {
+      zipper.classList.remove('zipping', 'unzipping');
+    }, 600);
+  }
+
+  if (idleCycleActive) {
+    runIdleCycle();
+  } else {
+    clearTimeout(idleCycleTimer);
+    idleCycleTimer = null;
+    if (speechBubble && speechBubble.classList.contains('show') && !msgQueue[msgIndex]?.action) dismiss();
+  }
+}
 /* --- showMsg: displays alerts through EVE's bubble --- */
-function showMsg(msg, isError = false) {
+function showMsg(msg, isError = false, reaction = 'lookup') {
   clearTimeout(idleCycleTimer);
   idleCycleTimer = null;
   lastBubbleShow = Date.now();
 
-  triggerJump('lookup');
+  triggerJump(reaction);   // ← was hardcoded 'lookup'
 
   if (msgEl) msgEl.textContent = msg;
   if (actionsEl) actionsEl.innerHTML = '';
@@ -2820,13 +2887,14 @@ function showMsg(msg, isError = false) {
 }
 
   /* --- eveAlert: replaces native eveAlert() --- */
-  function eveAlert(msg, isError = false) {
-    if (speechBubble && msgEl) {
-      showMsg(msg, isError);
-    } else {
-      nativeAlert(msg);
-    }
+/* --- eveAlert: replaces native alert() --- */
+function eveAlert(msg, isError = false) {
+  if (speechBubble && msgEl) {
+    showMsg(msg, isError, isError ? 'lookup' : 'smile');  // ← CHANGED
+  } else {
+    nativeAlert(msg);
   }
+}
 
   /* --- Attach toggle button listener --- */
   const idleToggleBtn = document.getElementById('eve-idle-toggle');
@@ -2881,13 +2949,13 @@ function showMsg(msg, isError = false) {
   window.eveAlert = eveAlert;
 
   /* --- Ignition --- */
-  function initEve() {
-    if (eveHead && speechBubble) {
-      ambientBehavior();
-      setTimeout(checkUrgent, 2500);
-      setTimeout(runIdleCycle, 10000);
-    }
+function initEve() {
+  if (eveHead && speechBubble) {
+    ambientBehavior();
+    setTimeout(checkUrgent, 2500);
+    // setTimeout(runIdleCycle, 10000);  // ← REMOVED: no more auto tips
   }
+}
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initEve);
