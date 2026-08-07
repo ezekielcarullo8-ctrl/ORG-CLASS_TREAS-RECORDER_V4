@@ -1361,7 +1361,6 @@ body.style-cyberpunk .device-id-box {
   padding: 20px 16px;
   margin-top: 16px;
   box-shadow: var(--shadow-sm);
-  overflow-x: auto;
 }
 
 .statement-header {
@@ -1449,7 +1448,7 @@ body.style-cyberpunk .device-id-box {
   /* Statement kept in desktop layout on small screens per request */
 
   .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 
@@ -1852,6 +1851,29 @@ body.style-cyberpunk .cf-expense-card {
   transform: scale(0.36);
   transform-origin: bottom left;
   pointer-events: auto;
+  /* smooth hide / show animation */
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.4s ease;
+}
+
+/* ── EVE tucked inside the silencer button ── */
+.eve-bot.eve-silenced .eve-scaler {
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.eve-bot.eve-silenced .eve-hint {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.eve-bot.eve-silenced .speech-bubble {
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(8px) scale(0.92) !important;
+  pointer-events: none !important;
+  transition: all 0.3s ease !important;
 }
 
 .eve-bot .eve-container {
@@ -2077,6 +2099,20 @@ body.theme-dark .eve-bot .eve-dismiss-btn {
   100% { transform: scale(0.6); opacity: 0.3; filter: blur(4px); }
 }
 
+@keyframes nevermindTwitch {
+  0%   { transform: translateX(0) rotate(0deg) scale(1, 1); }
+  15%  { transform: translateX(-16px) rotate(-12deg) scale(0.95, 1.05); }
+  30%  { transform: translateX(14px) rotate(10deg) scale(0.95, 1.05); }
+  50%  { transform: translateX(-10px) rotate(-7deg) scale(1.02, 0.98); }
+  70%  { transform: translateX(6px) rotate(4deg) scale(0.98, 1.02); }
+  85%  { transform: translateX(-3px) rotate(-2deg) scale(1.01, 0.99); }
+  100% { transform: translateX(0) rotate(0deg) scale(1, 1); }
+}
+
+.eve-bot .eve-head.is-twitching {
+  animation: nevermindTwitch 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
 .eve-bot .blink {
   animation: digitalBlink 0.15s ease-in-out;
 }
@@ -2168,4 +2204,96 @@ body.style-cyberpunk .eve-idle-toggle.stopped {
   border: none;
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
   filter: brightness(1.2);
+}
+
+/* ================================================================
+   EVE "NEVERMIND" EYE DART (side-to-side after lookup)
+   ================================================================ */
+@keyframes eyeNevermind {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-14px); }
+  35%  { transform: translateX(14px); }
+  55%  { transform: translateX(-8px); }
+  75%  { transform: translateX(8px); }
+  100% { transform: translateX(0); }
+}
+
+.eve-bot .eve-eye.is-neverminding {
+  animation: eyeNevermind 0.5s ease-in-out;
+}
+
+/* ================================================================
+   EVE ZIPPER — brief flash only, no permanent state, no opacity change
+   ================================================================ */
+.eve-zipper {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%) scaleX(0);
+  opacity: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.eve-zipper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #ccc 0px, #ccc 2px,
+    #888 2px, #888 4px
+  );
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+.eve-zipper::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 14px;
+  background: linear-gradient(135deg, #e0e0e0, #999);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  border: 1px solid #666;
+}
+
+body.theme-dark .eve-zipper::before,
+body.style-cyberpunk .eve-zipper::before {
+  background: repeating-linear-gradient(90deg, #666 0px, #666 2px, #333 2px, #333 4px);
+}
+body.theme-dark .eve-zipper::after,
+body.style-cyberpunk .eve-zipper::after {
+  background: linear-gradient(135deg, #888, #444);
+  border-color: #333;
+}
+
+/* Closing (silencing) */
+.eve-zipper.zipping {
+  animation: zipClose 0.55s ease-in-out forwards;
+}
+
+/* Opening (waking up) */
+.eve-zipper.unzipping {
+  animation: zipOpen 0.55s ease-in-out forwards;
+}
+
+@keyframes zipClose {
+  0%   { transform: translateY(-50%) scaleX(0); opacity: 0; }
+  40%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
+  70%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
+  100% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+}
+
+@keyframes zipOpen {
+  0%   { transform: translateY(-50%) scaleX(0); opacity: 0; }
+  40%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
+  70%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
+  100% { transform: translateY(-50%) scaleX(0); opacity: 0; }
 }
