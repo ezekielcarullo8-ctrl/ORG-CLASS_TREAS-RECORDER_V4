@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Org/Class Treasurer Recorder V4</title>
+<title>Oog/Class Treasurer Recorder V3</title>
 <link rel="stylesheet" href="style.css">
 <base target="_blank">
 <base target="_blank">
@@ -132,6 +132,10 @@
       <input type="hidden" id="student-select">
     </div>
         <div class="row row-center">
+      <input type="date" id="payment-date">
+    </div>
+
+    <div class="row row-center">
       <input type="text" id="payment-note" placeholder="Note (optional)">
     </div>
 
@@ -472,6 +476,19 @@
       </div>
     </div>
   </div>
+
+  <!-- EDIT HISTORY ENTRY MODAL -->
+<div id="edit-history-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 420px;">
+    <h2 style="font-size:20px;">Edit Payment</h2>
+    <p class="note" style="margin-bottom:15px;">Update payment details below.</p>
+    <input type="date" id="edit-hist-date">
+    <input type="number" id="edit-hist-amount" placeholder="Amount" step="0.01">
+    <input type="text" id="edit-hist-note" placeholder="Note (optional)">
+    <button class="full-btn" onclick="confirmEditHistory()">Save Changes</button>
+    <button class="full-btn btn-cancel" onclick="closeEditHistoryModal()" style="margin-top:10px;">Cancel</button>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>
