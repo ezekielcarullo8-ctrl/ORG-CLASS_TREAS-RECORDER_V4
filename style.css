@@ -1361,6 +1361,7 @@ body.style-cyberpunk .device-id-box {
   padding: 20px 16px;
   margin-top: 16px;
   box-shadow: var(--shadow-sm);
+  overflow-x: auto;
 }
 
 .statement-header {
@@ -1448,7 +1449,7 @@ body.style-cyberpunk .device-id-box {
   /* Statement kept in desktop layout on small screens per request */
 
   .summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
 
