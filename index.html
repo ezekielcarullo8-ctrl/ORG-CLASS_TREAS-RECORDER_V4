@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Org/Class Treasurer Recorder V3</title>
+<title>Oog/Class Treasurer Recorder V3</title>
 <link rel="stylesheet" href="style.css">
 <base target="_blank">
 <base target="_blank">
@@ -423,4 +423,42 @@
     <span>📁</span>Records
   </button>
     <button class="nav-item hidden" id="nav-classfund" onclick="switchTab('classfund-section', this)">
-   
+    <span>💰</span>Class Fund
+  </button>
+  <button class="nav-item" id="nav-cashbook" onclick="switchTab('cashbook-section', this)">
+    <span>💵</span>Cashbook
+  </button>
+  <button class="nav-item" id="nav-summary" onclick="switchTab('summary-section', this)">
+    <span>📊</span>Summary
+  </button>
+  
+</nav>
+
+  <!-- EVE Bot Assistant -->
+  <div class="eve-bot" id="eveBot">
+    <button id="eve-idle-toggle" class="eve-idle-toggle running" title="Idle tips running — tap to stop">●</button>
+    <span class="eve-hint">Tap to silence ME</span>
+    <div class="speech-bubble" id="speechBubble">
+      <div class="eve-msg" id="eveMsg">Oh hi! I'm just finding the bug</div>
+      <div class="eve-actions" id="eveActions"></div>
+    </div>
+    <div class="eve-scaler">
+      <div class="eve-container">
+        <div class="eve-head" id="eveHead">
+          <div class="eve-visor">
+            <div class="eye-wrapper">
+              <div class="eve-eye left-eye" id="leftEye"></div>
+            </div>
+            <div class="eye-wrapper">
+              <div class="eve-eye right-eye" id="rightEye"></div>
+            </div>
+          </div>
+        </div>
+        <div class="eve-shadow"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>
