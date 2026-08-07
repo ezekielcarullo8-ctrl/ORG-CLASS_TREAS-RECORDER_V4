@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oog/Class Treasurer Recorder V3</title>
+<link rel="stylesheet" href="style.css">
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
+
+<!-- TOP BAR: theme / style toggles + watermark -->
+<div class="top-bar">
+    <div class="toggle-group">
+    <button id="theme-toggle" class="icon-toggle" onclick="toggleTheme()" title="Switch light / dark mode">🌙</button>
+
+    <button id="mode-toggle" class="icon-toggle" onclick="switchMode()" title="Switch Org / Class mode" style="font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; width:auto; padding:0 14px; border-radius:20px;">ORG</button>
+  </div>
+  <span class="watermark">@EVC</span>
+</div>
+
+<!-- ACTIVATION LOCK OVERLAY (device-bound, prevents unauthorized copies) -->
+<div id="activation-overlay" class="activation-overlay hidden">
+  <div class="activation-card">
+    <h2 style="font-size:20px;">App Locked</h2>
+    <p class="note" style="margin-bottom:15px;">This copy of the app is not activated on this device yet. Send the Device ID below to the seller to receive your Activation Code.</p>
+
+    <p class="note">YOUR DEVICE ID</p>
+    <div id="device-id-display" class="device-id-box">Loading...</div>
+
+    <input type="text" id="activation-code-input" placeholder="Enter Activation Code" style="margin-top:15px; text-transform:uppercase;">
+    <button class="full-btn" onclick="submitActivationCode()">Activate</button>
+    <p class="note" id="activation-error" style="color:#B3423B; margin-top:10px;"></p>
+  </div>
+</div>
+
+<!-- MODE SELECTOR OVERLAY -->
+<div id="mode-overlay" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 420px;">
+    <h2 style="font-size:22px; margin-bottom:8px;">Select Mode</h2>
+    <p class="note" style="margin-bottom:20px;">Choose how you'll use this app. You can change this later via the top-bar toggle.</p>
+    <button class="full-btn" onclick="setMode('org')" style="margin-bottom:12px; padding:16px;">
+      <div style="font-size:16px; font-weight:700;">🏛️ Organization Treasurer</div>
+      <div style="font-size:12px; font-weight:400; opacity:0.8; margin-top:4px;">Cash Book • Projects • Financial Statements</div>
+    </button>
+    <button class="full-btn" onclick="setMode('class')" style="background: linear-gradient(135deg, var(--accent-2), var(--warning)); padding:16px;">
+      <div style="font-size:16px; font-weight:700;">🎓 Class Treasurer</div>
+      <div style="font-size:12px; font-weight:400; opacity:0.8; margin-top:4px;">Student Collections • Simple Tracking</div>
+    </button>
+  </div>
+</div>
+
+<!-- PIN LOCK OVERLAY (protects the app every time it's opened) -->
+<div id="pin-overlay" class="activation-overlay hidden">
+  <div class="activation-card">
+    <h2 id="pin-title" style="font-size:20px;">Enter PIN</h2>
+    <p class="note" id="pin-subtext" style="margin-bottom:15px;">Enter your 4-digit PIN to continue.</p>
+
+    <input type="password" id="pin-input" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center; letter-spacing:10px; font-size:24px;">
+    <button class="full-btn" onclick="submitPin()">Unlock</button>
+    <p class="note" id="pin-error" style="color:#B3423B; margin-top:10px;"></p>
+    <p class="note" style="margin-top:15px; cursor:pointer; text-decoration:underline;" onclick="forgotPin()">Forgot PIN?</p>
+  </div>
+</div>
+
+<!-- ADD ALL YEAR LEVEL MODAL -->
+<div id="add-all-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 520px; width: 100%; padding: 28px 24px;">
+    <div class="item-header" style="border:none; padding-bottom:10px; margin-bottom:6px;">
+      <h3 style="margin-bottom:0; padding-bottom:0;">Add Year Levels</h3>
+      <button onclick="closeAddAllModal()" style="width:auto; height:auto; padding:8px 16px; font-size:13px;">✕ Close</button>
+    </div>
+    <p class="note" style="margin-bottom:14px;">Select which year levels to enroll in <b id="add-all-cat-name">this collection</b>. Search to filter the list.</p>
+        <div class="row" style="margin-bottom:10px; gap:8px;">
+      <input type="text" id="add-all-search" placeholder="Search year level..." oninput="renderAddAllList()" style="flex:1; margin-bottom:0;">
+      <button onclick="selectAllAddAll()" style="width:auto; padding:0 16px; white-space:nowrap;">Select All</button>
+      <button onclick="deselectAllAddAll()" style="width:auto; padding:0 16px; white-space:nowrap; background:var(--surface); color:var(--ink); border:1.5px solid var(--hairline);">Deselect All</button>
+    </div>
+    <div id="add-all-list" style="max-height: 55vh; overflow-y: auto; margin-bottom: 18px; padding-right: 4px;"></div>
+    <div class="row" style="margin-bottom:0; gap:12px;">
+      <button class="full-btn" onclick="confirmAddAll()" style="flex:1; margin-top:0;">Add Selected</button>
+      <button class="full-btn btn-cancel" onclick="closeAddAllModal()" style="flex:1; margin-top:0;">Cancel</button>
+    </div>
+    <p class="note" id="add-all-status" style="margin-top:12px; text-align:center; font-weight:600;"></p>
+  </div>
+</div>
+
+<div class="container">
+  <p class="eyebrow">Digital Ledger</p>
+  <h2>TREASURER'S RECORDER</h2>
+  <hr class="header-rule">
+
+  <!-- ADD SECTION -->
+  <div id="add-section" class="page">
+    <h3>Add Collection Category</h3>
+    <div class="row">
+      <input type="text" id="new-category" placeholder="e.g. Newsette Fee">
+      <input type="number" id="new-category-due" placeholder="Default Amount Due" step="0.01">
+    </div>
+    <button class="full-btn" onclick="addCategory()">Add Collection</button>
+
+    <hr class="section-divider">
+
+    <h3>Record A Payment</h3>
+    <div class="row">
+      <div class="custom-dropdown">
+        <input type="text" id="category-search" placeholder="Search or Select Collection..." onkeyup="filterCategories()" onclick="filterCategories()">
+        <div id="category-list-dropdown" class="dropdown-content"></div>
+      </div> 
+      <input type="hidden" id="category-select">
+    </div>
+
+    <div class="row">
+      <div class="custom-dropdown">
+        <input type="text" id="student-search" placeholder="Search or Select Year Level..." onkeyup="filterStudentPicker()" onclick="filterStudentPicker()">
+        <div id="student-list-dropdown" class="dropdown-content"></div>
+      </div>
+      <input type="hidden" id="student-select">
+    </div>
+        <div class="row row-center">
+      <input type="text" id="payment-note" placeholder="Note (optional)">
+    </div>
+
+    <div class="row row-center">
+      <input type="number" id="amount-paying" placeholder="Amount Paying Now" step="0.01">
+    </div>
+    <button class="full-btn" onclick="recordPayment()">Record Payment</button>
+    <!-- In ADD tab, replace the tip paragraph: -->
+<p class="note add-tab-note">
+  <b>💡 Tip:</b> <span class="mode-student-label">Year levels</span> must be added permanently in the <b>Year Level</b> tab before they appear in dropdowns. Payments recorded here automatically sync to your Cash Book ledger.
+</p>
+  </div>
+
+  <!-- STUDENTS (DATABASE) SECTION -->
+  <div id="database-section" class="page hidden">
+
+    <div id="student-list-view">
+      <!-- In DATABASE tab, replace the first h3: -->
+<h3 id="db-add-header">Add Program & Year Level (Permanent)</h3>
+      <input type="text" id="new-student-name" placeholder="e.g BSIT 2">
+      <button class="full-btn" onclick="addStudent()">Add Year Level</button>
+
+      <hr class="section-divider">
+
+      <!-- In DATABASE tab, replace the second h3: -->
+<h3 id="db-list-header">Student Database</h3>
+      <div class="row">
+        <input type="text" id="search-students-db" placeholder="Search Year Level..." oninput="renderStudents()">
+      </div>
+      <p class="note" id="student-count">0 program year level in the database</p>
+      <p class="note">Tap a program year level to view their balance across all collections</p>
+      <div id="student-db-list"></div>
+    </div>
+
+    <div id="student-profile-view" class="hidden">
+      <div class="item-header">
+        <button onclick="backToStudentList()">← Back</button>
+        <h3 id="profile-student-name">STUDENT NAME</h3>
+        <div></div>
+      </div>
+      <div id="profile-summary" class="summary-grid"></div>
+      <h3>Breakdown By Collection</h3>
+      <div id="profile-breakdown"></div>
+    </div>
+
+  </div>
+
+  <!-- RECORDS SECTION -->
+  <div id="inventory-section" class="page hidden">
+    <div id="category-view">
+      <h3>Collections A-Z</h3>
+      <div class="inventory-wrapper">
+        <div id="category-list" class="category-scroll"></div>
+        <div id="alpha-index" class="alpha-index"></div>
+      </div>
+    </div>
+
+    <div id="item-view" class="hidden">
+      <div class="item-header">
+        <button onclick="backToCategories()">← Back</button>
+        <h3 id="item-view-title">COLLECTION NAME</h3>
+        <div></div>
+      </div>
+      <div class="item-toolbar">
+        <!-- In INVENTORY/Records tab, inside item-toolbar: -->
+<button onclick="addAllStudents()">+ <span class="mode-add-all-btn">Add All Year Level</span></button>
+        <button onclick="renameCategory()">Rename</button>
+        <button onclick="exportCategoryCSV()">Export CSV</button>
+      </div>
+      <input type="text" id="item-search" placeholder="Search year level in this collection..." oninput="renderItemList()" style="margin-bottom:15px;">
+      <div id="item-summary" class="item-summary"></div>
+      <div class="inside-box-full">
+        <p class="note">Tap program year level to add a payment or edit</p>
+        <div id="item-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASHBOOK SECTION (organization-wide income & expense ledger) -->
+  <div id="cashbook-section" class="page hidden">
+
+    <div id="cashbook-main-view">
+      <p class="note" style="margin-bottom:14px;">This is your organization's general cash book — for tracking dues, sponsorships, event income, and expenses. Recording a transaction here instantly updates both your collection records and your main cash balance simultaneously. If you made a mistake, you can easily edit or delete any logged entry from the ledger below.</p>
+
+      <div id="cashbook-summary" class="summary-grid"></div>
+
+      <div class="row">
+        <button onclick="openOpeningBalanceModal()" style="flex:1;">💰 Set Opening Balance</button>
+        <button onclick="showProjectsView()" style="flex:1;">📁 Projects &amp; Events</button>
+      </div>
+
+      <hr class="section-divider">
+
+      <h3 id="txn-form-title">Record Transaction</h3>
+      <div class="row">
+        <button type="button" id="type-income-btn" class="type-toggle-btn" onclick="setTxnType('income')" style="flex:1;">+ Income</button>
+        <button type="button" id="type-expense-btn" class="type-toggle-btn" onclick="setTxnType('expense')" style="flex:1;">− Expense</button>
+      </div>
+      <input type="hidden" id="txn-type" value="income">
+      <input type="hidden" id="txn-edit-id" value="">
+
+      <div class="row">
+        <input type="date" id="txn-date">
+        <input type="text" id="txn-or" placeholder="OR / Voucher No. (optional)">
+      </div>
+
+      <div class="row">
+        <select id="txn-category"></select>
+      </div>
+
+      <div class="row">
+        <input type="text" id="txn-description" placeholder="Description (e.g. Membership dues - August)">
+      </div>
+
+      <div class="row">
+        <input type="number" id="txn-amount" placeholder="Amount" step="0.01">
+      </div>
+
+      <div class="row">
+        <div class="custom-dropdown">
+          <input type="text" id="txn-project-search" placeholder="Link to Project/Event (optional)" onkeyup="filterProjectPicker()" onclick="filterProjectPicker()">
+          <div id="txn-project-dropdown" class="dropdown-content"></div>
+        </div>
+      </div>
+      <input type="hidden" id="txn-project-select">
+
+      <textarea id="txn-notes" placeholder="Notes (optional)" style="height:70px; resize:vertical; padding-top:13px; margin-bottom:16px;"></textarea>
+
+      <button class="full-btn" onclick="saveTransaction()">Save Transaction</button>
+      <button class="full-btn btn-cancel" id="txn-cancel-btn" style="display:none;" onclick="cancelTxnEdit()">Cancel Edit</button>
+      <button class="full-btn danger-btn" id="txn-delete-btn" style="display:none;" onclick="deleteCurrentTxn()">Delete This Transaction</button>
+
+      <hr class="section-divider">
+
+      <h3>Cash Book Ledger</h3>
+      <div class="row">
+        <input type="text" id="cashbook-search" placeholder="Search transactions..." oninput="renderCashbookList()">
+      </div>
+      <div class="row">
+        <select id="cashbook-filter-type" onchange="renderCashbookList()">
+          <option value="all">All Types</option>
+          <option value="income">Income Only</option>
+          <option value="expense">Expense Only</option>
+        </select>
+        <button onclick="exportCashbookCSV()" style="max-width:150px;">Export CSV</button>
+      </div>
+      <p class="note" id="cashbook-count" style="margin-bottom:10px;"></p>
+      <div id="cashbook-list"></div>
+    </div>
+
+    <div id="projects-view" class="hidden">
+      <div class="item-header">
+        <button onclick="hideProjectsView()">← Back</button>
+        <h3>Projects &amp; Events</h3>
+        <div></div>
+      </div>
+      <p class="note" style="margin-bottom:14px;">Track a budget per event or project (e.g. Foundation Week, Outreach Program) and see income raised vs. what was actually spent.</p>
+      <div class="row">
+        <input type="text" id="new-project-name" placeholder="Project / Event name">
+        <input type="number" id="new-project-budget" placeholder="Budget (optional)" step="0.01">
+      </div>
+      <button class="full-btn" onclick="addProject()">Add Project</button>
+      <hr class="section-divider">
+      <div id="projects-list"></div>
+    </div>
+
+    <div id="project-detail-view" class="hidden">
+      <div class="item-header">
+        <button onclick="backToProjectsList()">← Back</button>
+        <h3 id="project-detail-name">PROJECT</h3>
+        <div></div>
+      </div>
+      <div id="project-detail-summary" class="summary-grid"></div>
+      <h3>Linked Transactions</h3>
+      <div id="project-detail-txns"></div>
+    </div>
+
+  </div>
+
+  <!-- SUMMARY SECTION -->
+  <div id="summary-section" class="page hidden">
+    <h3>Overview</h3>
+    <div id="summary-cards" class="summary-grid"></div>
+
+    <h3>Collections Breakdown</h3>
+    <div id="summary-breakdown"></div>
+
+    <hr class="section-divider">
+
+    <h3>Organization Info</h3>
+    <p class="note">Used on your printed/exported Financial Statement.</p>
+    <div class="row">
+      <input type="text" id="org-name" placeholder="Organization Name (e.g. PUP Unisan - Supreme Student Council)">
+    </div>
+    <div class="row">
+      <input type="text" id="org-treasurer" placeholder="Treasurer Name">
+      <input type="text" id="org-president" placeholder="President / Adviser Name">
+    </div>
+    <div class="row">
+      <input type="text" id="org-sy" placeholder="School Year (e.g. 2026-2027)">
+    </div>
+    <button class="full-btn" onclick="saveOrgSettings()">Save Organization Info</button>
+
+    <hr class="section-divider">
+
+    <h3>Financial Statement</h3>
+    <p class="note">Generate a Statement of Receipts and Disbursements from your Cash Book — ready to print or export for your GA report or audit.</p>
+    <div class="row">
+      <input type="date" id="stmt-start">
+      <input type="date" id="stmt-end">
+    </div>
+    <button class="full-btn" onclick="generateStatement()">Generate Statement</button>
+    <div id="statement-output"></div>
+
+    <hr class="section-divider">
+
+    <h3>Backup &amp; Restore</h3>
+    <p class="note">Your data lives only in this browser. Back it up regularly so you never lose records.</p>
+    <p class="note" id="backup-status" style="font-weight:700; margin-bottom:10px;"></p>
+    <button class="full-btn" onclick="exportBackup()">Export Backup (JSON)</button>
+    <label class="file-label">
+      Import Backup
+      <input type="file" accept="application/json" onchange="importBackup(event)" style="display:none;">
+    </label>
+    <button class="full-btn danger-btn" onclick="resetAllData()">Reset All Data</button>
+  </div>
+
+    <!-- CLASS FUND SECTION (Class Mode Only) -->
+    <div id="classfund-section" class="page hidden">
+    <p class="eyebrow" style="text-align:left; margin-bottom:6px;">Weekly Collection</p>
+    <h3>Class Fund Tracker</h3>
+    <p class="note" style="margin-bottom:16px;">
+      Track weekly class fund collections per student. Set your weekly amount and collection start date, then record payments. 
+      Students must be added in the <b>Students</b> tab first.
+    </p>
+
+    <!-- Settings -->
+    <div class="cf-settings">
+      <div class="row">
+        <input type="number" id="cf-weekly-due" placeholder="Weekly Due (₱)" step="0.01">
+        <input type="date" id="cf-start-date">
+      </div>
+      <button class="full-btn" onclick="saveClassFundSettings()" style="margin-top:0; margin-bottom:4px;">Save Settings</button>
+      <p class="note" id="cf-week-info" style="text-align:center; margin-top:8px; font-weight:600;"></p>
+    </div>
+
+    <!-- Summary Cards -->
+    <div id="classfund-summary" class="summary-grid"></div>
+
+    <!-- Missed Payment Alert -->
+    <div id="cf-missed-alert"></div>
+
+    <!-- Toolbar -->
+    <div class="row" style="margin-bottom:16px;">
+      <button class="full-btn" onclick="addAllToClassFund()" style="background: linear-gradient(135deg, var(--accent-2), var(--warning)); margin-top:0;">+ Add All Students</button>
+      <button class="full-btn btn-cancel" onclick="resetClassFundData()" style="margin-top:0;">Reset Class Fund</button>
+      <button class="full-btn" onclick="exportClassFundWeeklyCSV()" style="margin-top:0; background: linear-gradient(135deg, var(--info), var(--accent));">📄 Export Weekly CSV</button>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Expense Card — NOW PROPERLY CLOSED -->
+    <div class="cf-expense-card">
+      <h3 style="margin-bottom:6px;">Record Expense</h3>
+      <p class="note" style="margin-bottom:14px;">Log what the class fund was spent on (e.g. supplies, printing, food). This deducts from your net balance.</p>
+      
+      <div class="cf-expense-row">
+        <input type="date" id="cf-expense-date">
+        <input type="text" id="cf-expense-desc" placeholder="What was it spent on?">
+      </div>
+      <div class="cf-expense-row">
+        <input type="number" id="cf-expense-amount" placeholder="Amount" step="0.01">
+        <input type="text" id="cf-expense-note" placeholder="Note (optional)">
+      </div>
+      <button class="full-btn" onclick="recordClassFundExpense()" style="margin-top:4px; background: linear-gradient(135deg, var(--danger), #8f332d);">Record Expense</button>
+    </div>
+
+    <h3>Student Collections</h3>
+    <div class="row">
+      <input type="text" id="cf-search" placeholder="Search student..." oninput="renderClassFund()" style="margin-bottom:0;">
+    </div>
+    <p class="note" id="cf-count" style="margin-bottom:10px;"></p>
+    <div id="classfund-list"></div>
+
+    <hr class="section-divider">
+
+    <h3>Class Fund Ledger</h3>
+    <p class="note" style="margin-bottom:10px;">Complete running-balance log of all collections and spending.</p>
+    <div id="cf-txn-log"></div>
+  </div>
+
+</div>
+
+<nav class="nav-menu">
+  <button class="nav-item active" id="nav-add" onclick="switchTab('add-section', this)">
+    <span>➕</span>Add
+  </button>
+  <button class="nav-item" id="nav-students" onclick="switchTab('database-section', this)">
+    <span>🎓</span>Year Level
+  </button>
+  <button class="nav-item" id="nav-inventory" onclick="switchTab('inventory-section', this)">
+    <span>📁</span>Records
+  </button>
+    <button class="nav-item hidden" id="nav-classfund" onclick="switchTab('classfund-section', this)">
+   
