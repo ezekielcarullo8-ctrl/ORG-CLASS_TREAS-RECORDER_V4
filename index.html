@@ -66,6 +66,7 @@
 
 <!-- ADD ALL YEAR LEVEL MODAL -->
 <div id="add-all-modal" class="activation-overlay hidden">
+
   <div class="activation-card" style="max-width: 520px; width: 100%; padding: 28px 24px;">
     <div class="item-header" style="border:none; padding-bottom:10px; margin-bottom:6px;">
       <h3 style="margin-bottom:0; padding-bottom:0;">Add Year Levels</h3>
@@ -83,6 +84,18 @@
       <button class="full-btn btn-cancel" onclick="closeAddAllModal()" style="flex:1; margin-top:0;">Cancel</button>
     </div>
     <p class="note" id="add-all-status" style="margin-top:12px; text-align:center; font-weight:600;"></p>
+  </div>
+</div>
+
+<!-- RENAME COLLECTION MODAL -->
+<div id="rename-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 420px;">
+    <h2 style="font-size:20px;">Rename Collection</h2>
+    <p class="note" style="margin-bottom:15px;">Enter a new name for "<b id="rename-old-name"></b>".</p>
+    <input type="text" id="rename-input" placeholder="New collection name">
+    <button class="full-btn" onclick="confirmRenameCategory()">Rename</button>
+    <button class="full-btn btn-cancel" onclick="closeRenameModal()" style="margin-top:10px;">Cancel</button>
+    <p class="note" id="rename-error" style="color:#B3423B; margin-top:10px;"></p>
   </div>
 </div>
 
@@ -446,6 +459,7 @@
       <div class="eve-container">
         <div class="eve-head" id="eveHead">
           <div class="eve-visor">
+           <div class="eve-zipper" id="eveZipper"></div>
             <div class="eye-wrapper">
               <div class="eve-eye left-eye" id="leftEye"></div>
             </div>
