@@ -179,7 +179,7 @@
       eveAlert("PIN reset. Please set a new PIN now.");
       checkPinLock();
     } else {
-      eveAlert("That code doesn't match this device's activation code.");
+      eveAlert("That code doesn't match this device's activation code.", true);
     }
   }
 
@@ -429,8 +429,8 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
     const amount = round2(parseFloat(document.getElementById("cf-expense-amount").value) || 0);
     const note = document.getElementById("cf-expense-note").value.trim();
 
-    if (!desc) return eveAlert("Please enter what the expense was for.");
-    if (amount <= 0) return eveAlert("Please enter a valid amount.");
+    if (!desc) return eveAlert("Please enter what the expense was for.", true);
+    if (amount <= 0) return eveAlert("Please enter a valid amount.", true);
 
     db.classFund.transactions.push({
       id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
@@ -531,9 +531,9 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
   function addStudent() {
   const input = document.getElementById("new-student-name");
   const name = input.value.trim();
-  if (!name) return eveAlert("Please enter a " + lbl("year level").toLowerCase() + " name");
+  if (!name) return eveAlert("Please enter a " + lbl("year level").toLowerCase() + " name", true);
   if (db.students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-    return eveAlert("This " + lbl("year level").toLowerCase() + " is already in the database");
+    return eveAlert("This " + lbl("year level").toLowerCase() + " is already in the database", true);
   }
   db.students.push({ name });
   saveData();
@@ -579,8 +579,8 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
   function saveClassFundSettings() {
     const weekly = round2(parseFloat(document.getElementById("cf-weekly-due").value) || 0);
     const startDate = document.getElementById("cf-start-date").value;
-    if (weekly <= 0) return eveAlert("Please enter a valid weekly amount.");
-    if (!startDate) return eveAlert("Please select a collection start date.");
+    if (weekly <= 0) return eveAlert("Please enter a valid weekly amount.", true);
+    if (!startDate) return eveAlert("Please select a collection start date.", true);
     db.classFund.weeklyDue = weekly;
     db.classFund.startDate = startDate;
     saveData();
@@ -618,7 +618,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
   const dateVal = document.getElementById(`cf-date-${safeId}`).value;
   const amount = round2(parseFloat(document.getElementById(`cf-pay-${safeId}`).value) || 0);
   const note = document.getElementById(`cf-note-${safeId}`).value.trim();
-  if (amount <= 0) return eveAlert("Please enter a valid amount.");
+  if (amount <= 0) return eveAlert("Please enter a valid amount.", true);
 
   const cf = db.classFund;
   if (!cf.records[studentName]) cf.records[studentName] = { paid: 0, history: [] };
@@ -661,11 +661,11 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
   const newAmountStr = prompt(`Edit payment amount (was ${peso(entry.amount)}):`, entry.amount);
   if (newAmountStr === null) return;
   const newAmount = parseFloat(newAmountStr);
-  if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.");
+  if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.", true);
 
   const newDate = prompt(`Edit payment date (YYYY-MM-DD) (was ${entry.date}):`, entry.date);
   if (newDate === null) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return eveAlert("Invalid date format. Use YYYY-MM-DD.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return eveAlert("Invalid date format. Use YYYY-MM-DD.", true);
 
   const newNote = prompt(`Edit note (was ${entry.note || 'Class Fund'}):`, entry.note || 'Class Fund');
   if (newNote === null) return;
@@ -1074,7 +1074,7 @@ async function exportClassFundWeeklyCSV() {
   function showStudentProfile(name) {
     const student = db.students.find(s => s.name === name);
       if (!student) {
-    eveAlert(lbl("Year Level") + " not found. They may have been deleted.");
+    eveAlert(lbl("Year Level") + " not found. They may have been deleted.", true);
     return;
   }
 
@@ -1131,9 +1131,9 @@ async function exportClassFundWeeklyCSV() {
     const cat = catInput.value.trim();
     const due = round2(parseFloat(dueInput.value) || 0);
 
-    if (!cat) return eveAlert("Please enter a collection name (e.g. Newsette Fee)");
-    if (findCategoryKeyCI(cat)) return eveAlert("This collection already exists (names are not case-sensitive).");
-    if (due <= 0) return eveAlert("Please enter the default amount due per student");
+    if (!cat) return eveAlert("Please enter a collection name (e.g. Newsette Fee)", true);
+    if (findCategoryKeyCI(cat)) return eveAlert("This collection already exists (names are not case-sensitive).", true);
+    if (due <= 0) return eveAlert("Please enter the default amount due per student", true);
 
     db.categories[cat] = { amountDue: due, records: [] };
     catInput.value = "";
@@ -1267,9 +1267,9 @@ async function exportClassFundWeeklyCSV() {
     const amountPaying = round2(parseFloat(document.getElementById("amount-paying").value) || 0);
     const note = document.getElementById("payment-note").value.trim();
 
-    if (!cat || !db.categories[cat]) return eveAlert("Please pick a valid collection from the list");
-    if (!student || !db.students.some(s => s.name === student)) return eveAlert("Please pick a valid student from the database");
-    if (amountPaying <= 0) return eveAlert("Please enter a positive amount");
+    if (!cat || !db.categories[cat]) return eveAlert("Please pick a valid collection from the list", true);
+    if (!student || !db.students.some(s => s.name === student)) return eveAlert("Please pick a valid student from the database", true);
+    if (amountPaying <= 0) return eveAlert("Please enter a positive amount", true);
 
     const catObj = db.categories[cat];
     let record = catObj.records.find(r => r.name === student);
@@ -1476,7 +1476,7 @@ function deselectAllAddAll() {
 
   function confirmAddAll() {
     const catObj = db.categories[currentCategory];
-    if (addAllSelected.size === 0) return eveAlert("Please select at least one year level.");
+    if (addAllSelected.size === 0) return eveAlert("Please select at least one year level.", true);
 
       if (!confirm(`Add ${addAllSelected.size} ${lbl("year level").toLowerCase()}(s) to "${currentCategory}" with default due of ${peso(catObj.amountDue)}?`)) return;
     addAllSelected.forEach(name => {
@@ -1539,7 +1539,7 @@ function deselectAllAddAll() {
         eveAlert(
           "Export needs the Filesystem and Share plugins, but they aren't installed in this build." +
   "Make sure @capacitor/filesystem and @capacitor/share are installed and synced before building the APK."
-        );
+        , true);
         return false;
       }
 
@@ -1557,7 +1557,7 @@ function deselectAllAddAll() {
       });
       return true;
     } catch (e) {
-      eveAlert("Mobile Export Error: " + e.message);
+      eveAlert("Mobile Export Error: " + e.message, true);
       return false;
     }
   }
@@ -1683,7 +1683,7 @@ function deselectAllAddAll() {
 
   function quickPay(idx) {
     const val = round2(parseFloat(document.getElementById(`quick-pay-${idx}`).value));
-    if (!val || val <= 0) return eveAlert("Enter a valid payment amount");
+    if (!val || val <= 0) return eveAlert("Enter a valid payment amount", true);
     const rec = db.categories[currentCategory].records[idx];
     rec.paid = round2(rec.paid + val);
     rec.history.push({ amount: val, date: new Date().toLocaleDateString(), note: "" });
@@ -1709,7 +1709,7 @@ function deselectAllAddAll() {
     const due = round2(parseFloat(document.getElementById(`edit-due-${idx}`).value) || 0);
     const paid = round2(parseFloat(document.getElementById(`edit-paid-${idx}`).value) || 0);
     const note = document.getElementById(`edit-note-${idx}`).value.trim();
-    if (due < 0 || paid < 0) return eveAlert("Values cannot be negative");
+    if (due < 0 || paid < 0) return eveAlert("Values cannot be negative", true);
     const rec = db.categories[currentCategory].records[idx];
     rec.due = due;
     rec.paid = paid;
@@ -1725,7 +1725,7 @@ function deselectAllAddAll() {
     const newAmountStr = prompt(`Edit payment amount (was ${peso(entry.amount)}):`, entry.amount);
     if (newAmountStr === null) return;
     const newAmount = parseFloat(newAmountStr);
-    if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.");
+    if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.", true);
 
     entry.amount = round2(newAmount);
     rec.paid = round2(rec.history.reduce((s, h) => s + h.amount, 0));
@@ -1812,9 +1812,9 @@ function deselectAllAddAll() {
     const notes = document.getElementById("txn-notes").value.trim();
     const editId = document.getElementById("txn-edit-id").value;
 
-    if (!description) return eveAlert("Please enter a description for this transaction.");
-    if (!category) return eveAlert("Please select a category.");
-    if (amount <= 0) return eveAlert("Please enter a valid amount greater than zero.");
+    if (!description) return eveAlert("Please enter a description for this transaction.", true);
+    if (!category) return eveAlert("Please select a category.", true);
+    if (amount <= 0) return eveAlert("Please enter a valid amount greater than zero.", true);
 
     if (editId) {
       const txn = db.cashbook.transactions.find(t => String(t.id) === String(editId));
@@ -1886,7 +1886,7 @@ function deselectAllAddAll() {
     const val = prompt("Set Opening / Beginning Cash Balance for the Cash Book:", current);
     if (val === null) return;
     const num = parseFloat(val);
-    if (isNaN(num) || num < 0) return eveAlert("Please enter a valid non-negative amount.");
+    if (isNaN(num) || num < 0) return eveAlert("Please enter a valid non-negative amount.", true);
     db.cashbook.openingBalance = round2(num);
     saveData();
     renderCashbookSummary();
@@ -1999,8 +1999,8 @@ function deselectAllAddAll() {
     const name = nameInput.value.trim();
     const budget = round2(parseFloat(budgetInput.value) || 0);
 
-    if (!name) return eveAlert("Please enter a project or event name.");
-    if (db.projects.some(p => p.name.toLowerCase() === name.toLowerCase())) return eveAlert("A project with that name already exists.");
+    if (!name) return eveAlert("Please enter a project or event name.", true);
+    if (db.projects.some(p => p.name.toLowerCase() === name.toLowerCase())) return eveAlert("A project with that name already exists.", true);
 
     db.projects.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), name, budget, status: "active" });
     saveData();
@@ -2516,7 +2516,7 @@ function deselectAllAddAll() {
           eveAlert("Backup restored!");
         }
       } catch (err) {
-        eveAlert("Invalid backup file.");
+        eveAlert("Invalid backup file.", true);
       }
       event.target.value = "";
     };
@@ -2801,7 +2801,7 @@ function deselectAllAddAll() {
   }
 
 /* --- showMsg: displays alerts through EVE's bubble --- */
-function showMsg(msg) {
+function showMsg(msg, isError = false) {
   clearTimeout(idleCycleTimer);
   idleCycleTimer = null;
   lastBubbleShow = Date.now();
@@ -2809,18 +2809,20 @@ function showMsg(msg) {
   triggerJump('lookup');
 
   if (msgEl) msgEl.textContent = msg;
+  if (actionsEl) actionsEl.innerHTML = '';
   if (speechBubble) {
     speechBubble.classList.add('show');
-    speechBubble.classList.add('alert-active');
+    if (isError) speechBubble.classList.add('alert-active');
+    else speechBubble.classList.remove('alert-active');
   }
   clearTimeout(bubbleTimer);
   bubbleTimer = setTimeout(() => dismiss(), 4000);
 }
 
   /* --- eveAlert: replaces native eveAlert() --- */
-  function eveAlert(msg) {
+  function eveAlert(msg, isError = false) {
     if (speechBubble && msgEl) {
-      showMsg(msg);
+      showMsg(msg, isError);
     } else {
       nativeAlert(msg);
     }
