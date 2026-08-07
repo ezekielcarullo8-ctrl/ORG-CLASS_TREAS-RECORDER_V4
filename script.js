@@ -225,7 +225,7 @@
     if (window.EveAssistant && typeof EveAssistant.showMsg === 'function') {
       const reaction = next === 'dark'
         ? "Did the lights turn off?"
-        : "Oh, nevermind";
+        : "Oh, wow nice it went back.";
       EveAssistant.showMsg(reaction);
     }
     if (window.EveAssistant && typeof EveAssistant.react === 'function') {
@@ -379,6 +379,10 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
       }
     });
   }
+
+  // Fix Add Student / Add Year Level button text
+  const addStudentBtn = document.querySelector('#database-section button[onclick="addStudent()"]');
+  if (addStudentBtn) addStudentBtn.innerText = isOrg() ? "Add Year Level" : "Add Student";
 
   // Input placeholders in Summary / Org Info
   const orgName = document.getElementById("org-name");
@@ -2241,8 +2245,8 @@ function deselectAllAddAll() {
         <p class="note" style="margin-top:16px; text-align:center;">Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder</p>
       </div>
       <div class="row" style="margin-top:16px;">
-        <button onclick="window.print()">🖨 Print Statement</button>
         <button onclick="exportStatementText()">Export as Text</button>
+        <button onclick="exportStatementImage()">Export as Image</button>
       </div>
     `;
     document.getElementById("statement-output").scrollIntoView({ behavior: "smooth" });
@@ -2254,6 +2258,173 @@ function deselectAllAddAll() {
     const text = area.innerText;
     await exportFileCrossPlatform(text, `statement-${new Date().toISOString().slice(0, 10)}.txt`, "text/plain", "Export Statement");
   }
+
+  async function exportStatementImage() {
+    const startVal = document.getElementById("stmt-start").value;
+    const endVal = document.getElementById("stmt-end").value;
+    const org = db.orgSettings || {};
+
+    const all = [...db.cashbook.transactions].sort((a, b) =>
+      (a.date || "").localeCompare(b.date || "") || String(a.id).localeCompare(String(b.id))
+    );
+    const before = startVal ? all.filter(t => t.date < startVal) : [];
+    const beginningBalance = round2(
+      (db.cashbook.openingBalance || 0) +
+      before.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0) -
+      before.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0)
+    );
+    const inRange = all.filter(t => {
+      if (startVal && t.date < startVal) return false;
+      if (endVal && t.date > endVal) return false;
+      return true;
+    });
+    const incomeTxns = inRange.filter(t => t.type === "income");
+    const expenseTxns = inRange.filter(t => t.type === "expense");
+    const incomeByCategory = {};
+    incomeTxns.forEach(t => { incomeByCategory[t.category] = round2((incomeByCategory[t.category] || 0) + t.amount); });
+    const expenseByCategory = {};
+    expenseTxns.forEach(t => { expenseByCategory[t.category] = round2((expenseByCategory[t.category] || 0) + t.amount); });
+    const totalReceipts = round2(incomeTxns.reduce((s, t) => s + t.amount, 0));
+    const totalDisbursements = round2(expenseTxns.reduce((s, t) => s + t.amount, 0));
+    const endingBalance = round2(beginningBalance + totalReceipts - totalDisbursements);
+    const periodLabel = (startVal || endVal)
+      ? `${startVal ? formatDisplayDate(startVal) : 'Beginning'} to ${endVal ? formatDisplayDate(endVal) : 'Present'}`
+      : "All Recorded Transactions";
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const scale = 2;
+    const W = 800;
+    const margin = 40;
+    let y = margin;
+
+    function lh(size) { return size * 1.45; }
+
+    function measureHeight() {
+      let h = margin;
+      h += lh(18) + 4 + lh(12) + 4 + lh(15) + 4 + lh(12) + 20;
+      h += lh(13.5) + 16;
+      h += lh(13) + 8;
+      Object.keys(incomeByCategory).forEach(() => { h += lh(13) + 4; });
+      if (Object.keys(incomeByCategory).length === 0) h += lh(12) + 4;
+      h += lh(13.5) + 8 + 16;
+      h += lh(13) + 8;
+      Object.keys(expenseByCategory).forEach(() => { h += lh(13) + 4; });
+      if (Object.keys(expenseByCategory).length === 0) h += lh(12) + 4;
+      h += lh(13.5) + 8 + 16;
+      h += lh(14) + 30;
+      h += lh(12) + 30 + lh(12) + 10 + lh(11) + margin;
+      return h;
+    }
+
+    const H = measureHeight();
+    canvas.width = W * scale;
+    canvas.height = H * scale;
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    function txt(text, x, y, size, weight, color, align) {
+      ctx.font = `${weight} ${size}px Inter, sans-serif`;
+      ctx.fillStyle = color || '#1F2A24';
+      ctx.textAlign = align || 'left';
+      ctx.fillText(text, x, y);
+    }
+
+    function line(x1, y1, x2, y2, color, width, dash) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = color || '#ddd';
+      ctx.lineWidth = width || 1;
+      if (dash) ctx.setLineDash(dash);
+      else ctx.setLineDash([]);
+      ctx.stroke();
+    }
+
+    txt(org.orgName || "Organization Name", W/2, y, 18, 'bold', '#1F2A24', 'center');
+    y += lh(18);
+    txt(`PUP Unisan Campus${org.schoolYear ? ' • S.Y. ' + org.schoolYear : ''}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
+    y += lh(12) + 4;
+    txt("STATEMENT OF RECEIPTS AND DISBURSEMENTS", W/2, y, 15, 'bold', '#1F2A24', 'center');
+    y += lh(15);
+    txt(`For the period: ${periodLabel}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
+    y += lh(12) + 20;
+
+    line(margin, y, W - margin, y, '#ddd', 1, [5, 5]);
+    y += 16;
+
+    txt("Beginning Cash Balance", margin, y, 13.5, 'normal', '#1F2A24');
+    txt(peso(beginningBalance), W - margin, y, 13.5, 'bold', '#1F2A24', 'right');
+    y += lh(13.5) + 16;
+
+    txt("Receipts", margin, y, 13, 'bold', '#163F2D');
+    y += lh(13) + 8;
+    Object.keys(incomeByCategory).sort().forEach(c => {
+      const displayCat = c === "Student Payment" ? "All Year Level Payment" : c;
+      txt(displayCat, margin + 10, y, 13, 'normal', '#1F2A24');
+      txt(peso(incomeByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
+      y += lh(13) + 4;
+    });
+    if (Object.keys(incomeByCategory).length === 0) {
+      txt("No receipts recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
+      y += lh(12) + 4;
+    }
+    line(margin, y, W - margin, y, '#ddd', 1);
+    y += 8;
+    txt("Total Receipts", margin, y, 13.5, 'bold', '#1F2A24');
+    txt(peso(totalReceipts), W - margin, y, 13.5, 'bold', '#2F7D53', 'right');
+    y += lh(13.5) + 16;
+
+    txt("Disbursements", margin, y, 13, 'bold', '#163F2D');
+    y += lh(13) + 8;
+    Object.keys(expenseByCategory).sort().forEach(c => {
+      txt(c, margin + 10, y, 13, 'normal', '#1F2A24');
+      txt(peso(expenseByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
+      y += lh(13) + 4;
+    });
+    if (Object.keys(expenseByCategory).length === 0) {
+      txt("No disbursements recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
+      y += lh(12) + 4;
+    }
+    line(margin, y, W - margin, y, '#ddd', 1);
+    y += 8;
+    txt("Total Disbursements", margin, y, 13.5, 'bold', '#1F2A24');
+    txt(peso(totalDisbursements), W - margin, y, 13.5, 'bold', '#B3423B', 'right');
+    y += lh(13.5) + 16;
+
+    line(margin, y, W - margin, y, '#1F5D42', 2);
+    y += 12;
+    txt("Ending Cash Balance", margin, y, 14, 'bold', '#1F2A24');
+    txt(peso(endingBalance), W - margin, y, 14, 'bold', '#1F2A24', 'right');
+    y += lh(14) + 30;
+
+    const sigWidth = (W - margin * 2 - 40) / 2;
+    txt("Prepared by:", margin, y, 12, 'normal', '#6E7A72');
+    txt("Noted by:", margin + sigWidth + 40, y, 12, 'normal', '#6E7A72');
+    y += 30;
+    line(margin, y, margin + sigWidth, y, '#1F2A24', 1);
+    line(margin + sigWidth + 40, y, margin + sigWidth * 2 + 40, y, '#1F2A24', 1);
+    y += 8;
+    txt(org.treasurerName || '_______________________', margin, y, 12, 'bold', '#1F2A24');
+    txt(org.presidentName || '_______________________', margin + sigWidth + 40, y, 12, 'bold', '#1F2A24');
+    y += lh(12);
+    txt("Treasurer", margin, y, 11, 'normal', '#6E7A72');
+    txt("President / Adviser", margin + sigWidth + 40, y, 11, 'normal', '#6E7A72');
+    y += lh(11) + 10;
+
+    txt(`Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder`, W/2, y, 11, 'normal', '#6E7A72', 'center');
+
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `statement-${new Date().toISOString().slice(0,10)}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
 
   // ================= SUMMARY TAB =================
   function renderSummary() {
@@ -2554,7 +2725,7 @@ function deselectAllAddAll() {
     if (item.action && ACTIONS[item.action]) {
       html += `<button class="eve-action-btn" onclick="EveAssistant.act('${item.action}')">${esc(item.label || 'Go')}</button>`;
     }
-    html += `<button class="eve-dismiss-btn" onclick="EveAssistant.dismiss()">Dismiss</button>`;
+    
     if (actionsEl) actionsEl.innerHTML = html;
     speechBubble.classList.add('show');
     clearTimeout(bubbleTimer);
@@ -2575,7 +2746,10 @@ function deselectAllAddAll() {
   }
 
   function dismiss() {
-    if (speechBubble) speechBubble.classList.remove('show');
+    if (speechBubble) {
+      speechBubble.classList.remove('show');
+      speechBubble.classList.remove('alert-active');
+    }
     clearTimeout(bubbleTimer);
     clearTimeout(idleCycleTimer);
     if (idleCycleActive) idleCycleTimer = setTimeout(runIdleCycle, 10000);
@@ -2626,17 +2800,22 @@ function deselectAllAddAll() {
     }
   }
 
-  /* --- showMsg: displays alerts through EVE's bubble --- */
-  function showMsg(msg) {
-    clearTimeout(idleCycleTimer);
-    idleCycleTimer = null;
-    lastBubbleShow = Date.now();                       // ← NEW
-    if (msgEl) msgEl.textContent = msg;
-    if (actionsEl) actionsEl.innerHTML = '<button class="eve-dismiss-btn" onclick="EveAssistant.dismiss()">Dismiss</button>';
-    if (speechBubble) speechBubble.classList.add('show');
-    clearTimeout(bubbleTimer);
-    bubbleTimer = setTimeout(() => dismiss(), 4000);
+/* --- showMsg: displays alerts through EVE's bubble --- */
+function showMsg(msg) {
+  clearTimeout(idleCycleTimer);
+  idleCycleTimer = null;
+  lastBubbleShow = Date.now();
+
+  triggerJump('lookup');
+
+  if (msgEl) msgEl.textContent = msg;
+  if (speechBubble) {
+    speechBubble.classList.add('show');
+    speechBubble.classList.add('alert-active');
   }
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => dismiss(), 4000);
+}
 
   /* --- eveAlert: replaces native eveAlert() --- */
   function eveAlert(msg) {
