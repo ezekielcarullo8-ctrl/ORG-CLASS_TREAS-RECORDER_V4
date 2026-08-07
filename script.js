@@ -455,6 +455,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
   let currentCategory = "";
   let editingIndex = null;
   let addAllSelected = new Set();
+  let editingHistory = { recIdx: null, histIdx: null };
 
   // ---------- HELPERS ----------
 
@@ -917,17 +918,18 @@ async function exportClassFundWeeklyCSV() {
                               ${rec.history.length > 0 ? `
                 <div class="cf-history">
                   <p class="note" style="margin-bottom:8px;"><b>Payment History</b></p>
-                  ${rec.history.slice().reverse().map((h, idx) => {
-                    const realIdx = rec.history.length - 1 - idx;
+                                   ${rec.history.slice().reverse().map((h, hIdx) => {
+                    const realIdx = rec.history.length - 1 - hIdx;
                     return `
                       <div class="history-entry">
-                        <span>${peso(h.amount)} — ${esc(h.date)}${h.note ? ' • ' + esc(h.note) : ''}</span>
+                        <span>${peso(h.amount)} on ${esc(formatDisplayDate(h.date))}${h.note ? ' • ' + esc(h.note) : ''}</span>
                         <div class="history-actions">
-                          <button class="mini-btn mini-delete" onclick="deleteClassFundPayment('${esc(name)}', ${realIdx})">DEL</button>
+                          <button class="mini-btn" data-action="edit-hist" data-rec="${idx}" data-hist="${realIdx}">EDIT</button>
+                          <button class="mini-btn mini-delete" data-action="del-hist" data-rec="${idx}" data-hist="${realIdx}">DEL</button>
                         </div>
                       </div>
                     `;
-                  }).join("")}
+                  }).join("")}  
                 </div>
               ` : ''}
               <button class="del-btn" onclick="deleteClassFundStudent('${esc(name)}')" style="margin-top:10px; width:100%;">Remove from Class Fund</button>
@@ -1291,13 +1293,14 @@ function confirmRenameCategory() {
     }
 
     record.paid = round2(record.paid + amountPaying);
-    record.history.push({ amount: amountPaying, date: new Date().toLocaleDateString(), note: note || "" });
+      const payDate = document.getElementById("payment-date").value || new Date().toISOString().slice(0, 10);
+    record.history.push({ amount: amountPaying, date: payDate, note: note || "" });
 
     if (isOrg()) {
     db.cashbook.transactions.push({
       id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
       type: "income",
-      date: new Date().toISOString().slice(0, 10),
+      date: payDate,
       orNumber: "",
       category: "Student Payment",
       description: `Payment from ${student}`,
@@ -1306,13 +1309,14 @@ function confirmRenameCategory() {
       notes: note || ""
     });
   }
-
     saveData();
     generateStatement();
 
     document.getElementById("payment-note").value = "";
       eveAlert(`Payment of ${peso(amountPaying)} from ${esc(student)} recorded!`);
   document.getElementById("payment-note").value = "";
+
+      document.getElementById("payment-date").value = new Date().toISOString().slice(0, 10);
   }
   // ================= RECORDS TAB (BROWSE COLLECTIONS) =================
   function renderCategories() {
@@ -1638,6 +1642,10 @@ function renderItemList() {
           <input type="number" id="edit-due-${idx}" value="${rec.due}" step="0.01" placeholder="Amount Due">
           <input type="number" id="edit-paid-${idx}" value="${rec.paid}" step="0.01" placeholder="Total Paid">
           <input type="text" id="edit-note-${idx}" value="${esc(rec.note || '')}" placeholder="Note / remarks (optional)">
+                    <div class="row" style="margin-bottom:8px;">
+            <input type="date" id="quick-pay-date-${idx}" value="${new Date().toISOString().slice(0,10)}">
+            <input type="text" id="quick-pay-note-${idx}" placeholder="Note (optional)">
+          </div>
           <div class="row" style="margin-bottom:0;">
             <input type="number" id="quick-pay-${idx}" placeholder="Add new payment">
             <button class="btn-save" data-action="quick-pay" data-idx="${idx}">ADD PAYMENT</button>
@@ -1703,7 +1711,7 @@ function renderItemList() {
         deleteItem(idx);
         break;
       case 'edit-hist':
-        editHistoryEntry(idx, histIdx);
+        openEditHistoryModal(idx, histIdx);
         break;
       case 'del-hist':
         deleteHistoryEntry(idx, histIdx);
@@ -1726,8 +1734,10 @@ function renderItemList() {
     const val = round2(parseFloat(document.getElementById(`quick-pay-${idx}`).value));
     if (!val || val <= 0) return eveAlert("Enter a valid payment amount", true);
     const rec = db.categories[currentCategory].records[idx];
+    const dateVal = document.getElementById(`quick-pay-date-${idx}`).value;
+    const noteVal = document.getElementById(`quick-pay-note-${idx}`).value.trim();
     rec.paid = round2(rec.paid + val);
-    rec.history.push({ amount: val, date: new Date().toLocaleDateString(), note: "" });
+    rec.history.push({ amount: val, date: dateVal || new Date().toISOString().slice(0, 10), note: noteVal });
 
     // Also log this payment in the Cash Book so the ledger stays in sync
     db.cashbook.transactions.push({
@@ -1760,17 +1770,42 @@ function renderItemList() {
     renderItemList();
   }
 
-  function editHistoryEntry(recIdx, histIdx) {
+  function openEditHistoryModal(recIdx, histIdx) {
     const rec = db.categories[currentCategory].records[recIdx];
     const entry = rec.history[histIdx];
-    const newAmountStr = prompt(`Edit payment amount (was ${peso(entry.amount)}):`, entry.amount);
-    if (newAmountStr === null) return;
-    const newAmount = parseFloat(newAmountStr);
-    if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.", true);
+    let dateVal = entry.date || "";
+    if (dateVal && !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+      const d = new Date(dateVal);
+      if (!isNaN(d.getTime())) dateVal = d.toISOString().slice(0, 10);
+    }
+    document.getElementById("edit-hist-date").value = dateVal || new Date().toISOString().slice(0, 10);
+    document.getElementById("edit-hist-amount").value = entry.amount;
+    document.getElementById("edit-hist-note").value = entry.note || "";
+    editingHistory = { recIdx, histIdx };
+    document.getElementById("edit-history-modal").classList.remove("hidden");
+  }
 
-    entry.amount = round2(newAmount);
-    rec.paid = round2(rec.history.reduce((s, h) => s + h.amount, 0));
+  function closeEditHistoryModal() {
+    document.getElementById("edit-history-modal").classList.add("hidden");
+    editingHistory = { recIdx: null, histIdx: null };
+  }
+
+  function confirmEditHistory() {
+    const { recIdx, histIdx } = editingHistory;
+    if (recIdx === null) return;
+    const rec = db.categories[currentCategory].records[recIdx];
+    const entry = rec.history[histIdx];
+    const newDate = document.getElementById("edit-hist-date").value;
+    const newAmount = round2(parseFloat(document.getElementById("edit-hist-amount").value) || 0);
+    const newNote = document.getElementById("edit-hist-note").value.trim();
+    if (newAmount <= 0) return eveAlert("Please enter a valid amount.", true);
+    rec.paid = round2(rec.paid - entry.amount + newAmount);
+    if (rec.paid < 0) rec.paid = 0;
+    entry.amount = newAmount;
+    entry.date = newDate || entry.date;
+    entry.note = newNote;
     saveData();
+    closeEditHistoryModal();
     renderItemList();
   }
 
@@ -2457,13 +2492,44 @@ function renderItemList() {
 
     txt(`Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder`, W/2, y, 11, 'normal', '#6E7A72', 'center');
 
-    canvas.toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `statement-${new Date().toISOString().slice(0,10)}.png`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
+    const fileName = `statement-${new Date().toISOString().slice(0,10)}.png`;
+
+    if (isAndroidApp()) {
+      try {
+        const plugins = window.Capacitor.Plugins || {};
+        const { Filesystem, Share } = plugins;
+
+        if (!Filesystem || !Share) {
+          eveAlert(
+            "Export needs the Filesystem and Share plugins. " +
+            "Make sure @capacitor/filesystem and @capacitor/share are installed and synced."
+          , true);
+          return;
+        }
+
+        const base64Data = canvas.toDataURL('image/png').split(',')[1];
+
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: "CACHE",
+          encoding: "base64"
+        });
+
+        await Share.share({
+          title: "Export Statement",
+          url: writeResult.uri,
+          dialogTitle: "Save Image"
+        });
+      } catch (e) {
+        eveAlert("Mobile Export Error: " + e.message, true);
+      }
+    } else {
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = fileName;
+      link.click();
+    }
   }
 
 
