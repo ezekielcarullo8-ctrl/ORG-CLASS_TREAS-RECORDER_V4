@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oog/Class Treasurer Recorder V3</title>
+<title>Org/Class Treasurer Recorder V4</title>
 <link rel="stylesheet" href="style.css">
 <base target="_blank">
 <base target="_blank">
@@ -48,6 +48,16 @@
       <div style="font-size:16px; font-weight:700;">🎓 Class Treasurer</div>
       <div style="font-size:12px; font-weight:400; opacity:0.8; margin-top:4px;">Student Collections • Simple Tracking</div>
     </button>
+  </div>
+</div>
+
+<!-- MODE SWITCH CONFIRM MODAL -->
+<div id="mode-switch-confirm-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 380px;">
+    <h2 style="font-size:19px;">Switch Mode?</h2>
+    <p class="note" style="margin-bottom:18px;">Switching between Organization and Class mode will reload the app. Your data for both modes is kept safe.</p>
+    <button class="full-btn" onclick="confirmSwitchMode()">Yes, Switch &amp; Reload</button>
+    <button class="full-btn btn-cancel" onclick="closeSwitchModeConfirm()" style="margin-top:10px;">Cancel</button>
   </div>
 </div>
 
@@ -325,32 +335,36 @@
 
     <hr class="section-divider">
 
-    <h3>Organization Info</h3>
-    <p class="note">Used on your printed/exported Financial Statement.</p>
-    <div class="row">
-      <input type="text" id="org-name" placeholder="Organization Name (e.g. PUP Unisan - Supreme Student Council)">
-    </div>
-    <div class="row">
-      <input type="text" id="org-treasurer" placeholder="Treasurer Name">
-      <input type="text" id="org-president" placeholder="President / Adviser Name">
-    </div>
-    <div class="row">
-      <input type="text" id="org-sy" placeholder="School Year (e.g. 2026-2027)">
-    </div>
-    <button class="full-btn" onclick="saveOrgSettings()">Save Organization Info</button>
+    <div id="org-info-section">
+      <h3>Organization Info</h3>
+      <p class="note">Used on your printed/exported Financial Statement.</p>
+      <div class="row">
+        <input type="text" id="org-name" placeholder="Organization Name (e.g. PUP Unisan - Supreme Student Council)">
+      </div>
+      <div class="row">
+        <input type="text" id="org-treasurer" placeholder="Treasurer Name">
+        <input type="text" id="org-president" placeholder="President / Adviser Name">
+      </div>
+      <div class="row">
+        <input type="text" id="org-sy" placeholder="School Year (e.g. 2026-2027)">
+      </div>
+      <button class="full-btn" onclick="saveOrgSettings()">Save Organization Info</button>
 
-    <hr class="section-divider">
-
-    <h3>Financial Statement</h3>
-    <p class="note">Generate a Statement of Receipts and Disbursements from your Cash Book — ready to print or export for your GA report or audit.</p>
-    <div class="row">
-      <input type="date" id="stmt-start">
-      <input type="date" id="stmt-end">
+      <hr class="section-divider">
     </div>
-    <button class="full-btn" onclick="generateStatement()">Generate Statement</button>
-    <div id="statement-output"></div>
 
-    <hr class="section-divider">
+    <div id="financial-statement-section">
+      <h3>Financial Statement</h3>
+      <p class="note">Generate a Statement of Receipts and Disbursements from your Cash Book — ready to print or export for your GA report or audit.</p>
+      <div class="row">
+        <input type="date" id="stmt-start">
+        <input type="date" id="stmt-end">
+      </div>
+      <button class="full-btn" onclick="generateStatement()">Generate Statement</button>
+      <div id="statement-output"></div>
+
+      <hr class="section-divider">
+    </div>
 
     <h3>Backup &amp; Restore</h3>
     <p class="note">Your data lives only in this browser. Back it up regularly so you never lose records.</p>
@@ -423,7 +437,7 @@
     <hr class="section-divider">
 
     <h3>Class Fund Ledger</h3>
-    <p class="note" style="margin-bottom:10px;">Complete running-balance log of all collections and spending.</p>
+    <p class="note" style="margin-bottom:10px;">Complete running-balance log of all collections and spending. Tap any transaction to edit it.</p>
     <div id="cf-txn-log"></div>
   </div>
 
@@ -487,6 +501,35 @@
     <input type="text" id="edit-hist-note" placeholder="Note (optional)">
     <button class="full-btn" onclick="confirmEditHistory()">Save Changes</button>
     <button class="full-btn btn-cancel" onclick="closeEditHistoryModal()" style="margin-top:10px;">Cancel</button>
+  </div>
+</div>
+
+<!-- CLASS FUND LEDGER TRANSACTION — FULL SCREEN EDIT -->
+<div id="cf-ledger-edit-modal" class="fullscreen-overlay hidden">
+  <div class="fullscreen-panel">
+    <div class="fullscreen-header">
+      <button onclick="closeCfLedgerEdit()">← Close</button>
+      <h3 style="margin-bottom:0; padding-bottom:0;">Edit Transaction</h3>
+      <div></div>
+    </div>
+
+    <p class="note" id="cf-ledger-edit-type" style="text-align:center; font-weight:700; margin-bottom:22px; text-transform:uppercase; letter-spacing:1px; font-size:13px;"></p>
+
+    <label class="note" id="cf-ledger-edit-desc-label" style="display:block; margin-bottom:6px; font-weight:600; color:var(--ink);">Description</label>
+    <input type="text" id="cf-ledger-edit-desc" placeholder="Description" style="margin-bottom:16px;">
+
+    <label class="note" style="display:block; margin-bottom:6px; font-weight:600; color:var(--ink);">Date</label>
+    <input type="date" id="cf-ledger-edit-date" style="margin-bottom:16px;">
+
+    <label class="note" style="display:block; margin-bottom:6px; font-weight:600; color:var(--ink);">Amount</label>
+    <input type="number" id="cf-ledger-edit-amount" step="0.01" placeholder="Amount" style="margin-bottom:16px;">
+
+    <label class="note" style="display:block; margin-bottom:6px; font-weight:600; color:var(--ink);">Note</label>
+    <input type="text" id="cf-ledger-edit-note" placeholder="Note (optional)" style="margin-bottom:16px;">
+
+    <button class="full-btn" onclick="saveCfLedgerEdit()" style="margin-top:12px;">Save Changes</button>
+    <button class="full-btn danger-btn" onclick="deleteCfLedgerEdit()">Delete Transaction</button>
+    <button class="full-btn btn-cancel" onclick="closeCfLedgerEdit()">Cancel</button>
   </div>
 </div>
 
