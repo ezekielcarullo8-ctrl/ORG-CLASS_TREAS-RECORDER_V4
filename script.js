@@ -2544,7 +2544,7 @@ async function exportStatementImage() {
   if (isAndroidApp()) {
     try {
       const plugins = window.Capacitor.Plugins || {};
-      const { Screenshot, Share } = plugins;
+      const { Screenshot, Filesystem, Share } = plugins;
 
       if (!Screenshot) {
         eveAlert("Screenshot plugin not found. Make sure @capawesome/capacitor-screenshot is installed and synced.", true);
@@ -2570,7 +2570,7 @@ async function exportStatementImage() {
       // Let the WebView render it
       await new Promise(r => setTimeout(r, 600));
 
-      // Take native screenshot of the visible screen
+      // Take native screenshot
       const result = await Screenshot.take();
 
       // Hide overlay immediately
@@ -2581,17 +2581,45 @@ async function exportStatementImage() {
         throw new Error("Screenshot returned no image");
       }
 
-      // Share the captured image file
-      if (Share) {
-        await Share.share({
-          title: "Financial Statement",
-          text: `Statement for ${org.orgName || 'Organization'} (${periodLabel})`,
-          url: result.uri,
-          dialogTitle: "Share Statement"
+      // ── FIX: Copy screenshot to app CACHE so Share plugin can read it ──
+      const fileName = `statement-${Date.now()}.png`;
+      let base64Data;
+
+      // Try reading the screenshot file directly
+      try {
+        const readRes = await Filesystem.readFile({
+          path: result.uri,
+          encoding: 'base64'
         });
-      } else {
-        eveAlert("Image saved. Share plugin not available.", true);
+        base64Data = readRes.data;
+      } catch (e1) {
+        // If direct read fails, fetch it via the WebView
+        const response = await fetch(result.uri);
+        const blob = await response.blob();
+        base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
       }
+
+      // Write to app cache (Share plugin can definitely access this)
+      const writeResult = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: "CACHE",
+        encoding: "base64"
+      });
+
+      // Share using files array (required for images on Android)
+      await Share.share({
+        title: "Financial Statement",
+        text: `Statement for ${org.orgName || 'Organization'} (${periodLabel})`,
+        files: [writeResult.uri],
+        dialogTitle: "Share Statement"
+      });
+
     } catch (e) {
       eveAlert("Screenshot export failed: " + e.message, true);
     }
