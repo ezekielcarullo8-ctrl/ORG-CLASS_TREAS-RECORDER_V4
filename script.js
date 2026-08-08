@@ -1874,15 +1874,13 @@ function renderItemList() {
     renderItemList();
   }
 
-  function saveItemEdit(idx) {
+function saveItemEdit(idx) {
     const due = round2(parseFloat(document.getElementById(`edit-due-${idx}`).value) || 0);
     const paid = round2(parseFloat(document.getElementById(`edit-paid-${idx}`).value) || 0);
-    const note = document.getElementById(`edit-note-${idx}`).value.trim();
     if (due < 0 || paid < 0) return eveAlert("Values cannot be negative", true);
     const rec = db.categories[currentCategory].records[idx];
     rec.due = due;
     rec.paid = paid;
-    rec.note = note;
     editingIndex = null;
     saveData();
     renderItemList();
