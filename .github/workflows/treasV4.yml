@@ -36,6 +36,7 @@ jobs:
         npm init -y
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npm install @capacitor/device @capacitor/filesystem @capacitor/share
+        npm install @capacitor-community/screenshot
         npm install @capacitor/assets --save-dev
         echo "{\"appId\": \"com.ezek.orgclasstreasrecV4\", \"appName\": \"$APP_NAME\", \"webDir\": \"www\"}" > capacitor.config.json
         npx cap add android
