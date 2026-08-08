@@ -36,7 +36,7 @@ jobs:
         npm init -y
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npm install @capacitor/device @capacitor/filesystem @capacitor/share
-        npm install @capacitor-community/screenshot
+        npm install @capawesome/capacitor-screenshot
         npm install @capacitor/assets --save-dev
         echo "{\"appId\": \"com.ezek.orgclasstreasrecV4\", \"appName\": \"$APP_NAME\", \"webDir\": \"www\"}" > capacitor.config.json
         npx cap add android
@@ -68,21 +68,12 @@ jobs:
 
     - name: Full Package Isolation
       run: |
-        # 1. Gradle app ID
         sed -i 's/applicationId ".*"/applicationId "com.ezek.orgclasstreasrecV4"/' android/app/build.gradle
-        
-        # 2. AndroidManifest package name
         sed -i 's/package=".*"/package="com.ezek.orgclasstreasrecV4"/' android/app/src/main/AndroidManifest.xml
-        
-        # 3. FileProvider reference
         find android/app/src/main/ -type f -name "AndroidManifest.xml" \
           -exec sed -i -E 's/android:authorities="[^"]*\.fileprovider"/android:authorities="com.ezek.orgclasstreasrecV4.fileprovider"/g' {} +
-        
-        # 4. MainActivity Java package declaration
         find android/app/src/main/ -type f -name "MainActivity.java" \
           -exec sed -i 's/^package .*;/package com.ezek.orgclasstreasrecV4;/' {} +
-        
-        # 5. Move MainActivity to correct folder path matching new package
         mkdir -p android/app/src/main/java/com/ezek/orgclasstreasrecV4
         find android/app/src/main/java -name "MainActivity.java" \
           ! -path "*/com/ezek/orgclasstreasrecV4/*" \
