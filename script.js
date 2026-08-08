@@ -2486,185 +2486,148 @@ function replaceCategoryLabel(category) {
     ? `${startVal ? formatDisplayDate(startVal) : 'Beginning'} to ${endVal ? formatDisplayDate(endVal) : 'Present'}`
     : "All Recorded Transactions";
 
-  const scale = 2;
-  const W = 800;
-  const margin = 40;
-  let y = margin;
-
-  function lh(size) { return size * 1.45; }
-
-  function measureHeight() {
-    let h = margin;
-    h += lh(18) + 4 + lh(12) + 4 + lh(15) + 4 + lh(12) + 20;
-    h += lh(13.5) + 16;
-    h += lh(13) + 8;
-    Object.keys(incomeByCategory).forEach(() => { h += lh(13) + 4; });
-    if (Object.keys(incomeByCategory).length === 0) h += lh(12) + 4;
-    h += lh(13.5) + 8 + 16;
-    h += lh(13) + 8;
-    Object.keys(expenseByCategory).forEach(() => { h += lh(13) + 4; });
-    if (Object.keys(expenseByCategory).length === 0) h += lh(12) + 4;
-    h += lh(13.5) + 8 + 16;
-    h += lh(14) + 30;
-    h += lh(12) + 30 + lh(12) + 10 + lh(11) + margin;
-    return h;
-  }
-
-  const H = measureHeight();
-
-  // ── FIX: Create, size, inject into DOM, THEN get context ──
-  const canvas = document.createElement('canvas');
-  canvas.width = W * scale;
-  canvas.height = H * scale;
-  canvas.style.position = 'fixed';
-  canvas.style.left = '-9999px';
-  canvas.style.top = '-9999px';
-  canvas.style.visibility = 'hidden';
-  document.body.appendChild(canvas);
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(scale, scale);
-
-  // Solid white background (drawn twice to guarantee no transparency)
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-
-  function txt(text, x, y, size, weight, color, align) {
-    ctx.font = `${weight} ${size}px Inter, sans-serif`;
-    ctx.fillStyle = color || '#1F2A24';
-    ctx.textAlign = align || 'left';
-    ctx.fillText(text, x, y);
-  }
-
-  function line(x1, y1, x2, y2, color, width, dash) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.strokeStyle = color || '#ddd';
-    ctx.lineWidth = width || 1;
-    if (dash) ctx.setLineDash(dash);
-    else ctx.setLineDash([]);
-    ctx.stroke();
-  }
-
-  txt(org.orgName || "Organization Name", W/2, y, 18, 'bold', '#1F2A24', 'center');
-  y += lh(18);
-  txt(`PUP Unisan Campus${org.schoolYear ? ' • S.Y. ' + org.schoolYear : ''}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
-  y += lh(12) + 4;
-  txt("STATEMENT OF RECEIPTS AND DISBURSEMENTS", W/2, y, 15, 'bold', '#1F2A24', 'center');
-  y += lh(15);
-  txt(`For the period: ${periodLabel}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
-  y += lh(12) + 20;
-
-  line(margin, y, W - margin, y, '#ddd', 1, [5, 5]);
-  y += 16;
-
-  txt("Beginning Cash Balance", margin, y, 13.5, 'normal', '#1F2A24');
-  txt(peso(beginningBalance), W - margin, y, 13.5, 'bold', '#1F2A24', 'right');
-  y += lh(13.5) + 16;
-
-  txt("Receipts", margin, y, 13, 'bold', '#163F2D');
-  y += lh(13) + 8;
-  Object.keys(incomeByCategory).sort().forEach(c => {
+  const incomeRows = Object.keys(incomeByCategory).sort().map(c => {
     const displayCat = c === "Year Levels Payment" ? "All Year Levels Payment" : c;
-    txt(displayCat, margin + 10, y, 13, 'normal', '#1F2A24');
-    txt(peso(incomeByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
-    y += lh(13) + 4;
-  });
-  if (Object.keys(incomeByCategory).length === 0) {
-    txt("No receipts recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
-    y += lh(12) + 4;
-  }
-  line(margin, y, W - margin, y, '#ddd', 1);
-  y += 8;
-  txt("Total Receipts", margin, y, 13.5, 'bold', '#1F2A24');
-  txt(peso(totalReceipts), W - margin, y, 13.5, 'bold', '#2F7D53', 'right');
-  y += lh(13.5) + 16;
+    return `<div class="statement-row"><span>${esc(displayCat)}</span><span>${peso(incomeByCategory[c])}</span></div>`;
+  }).join("") || '<p class="note">No receipts recorded for this period.</p>';
 
-  txt("Disbursements", margin, y, 13, 'bold', '#163F2D');
-  y += lh(13) + 8;
-  Object.keys(expenseByCategory).sort().forEach(c => {
-    txt(c, margin + 10, y, 13, 'normal', '#1F2A24');
-    txt(peso(expenseByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
-    y += lh(13) + 4;
-  });
-  if (Object.keys(expenseByCategory).length === 0) {
-    txt("No disbursements recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
-    y += lh(12) + 4;
-  }
-  line(margin, y, W - margin, y, '#ddd', 1);
-  y += 8;
-  txt("Total Disbursements", margin, y, 13.5, 'bold', '#1F2A24');
-  txt(peso(totalDisbursements), W - margin, y, 13.5, 'bold', '#B3423B', 'right');
-  y += lh(13.5) + 16;
+  const expenseRows = Object.keys(expenseByCategory).sort().map(c =>
+    `<div class="statement-row"><span>${esc(c)}</span><span>${peso(expenseByCategory[c])}</span></div>`
+  ).join("") || '<p class="note">No disbursements recorded for this period.</p>';
 
-  line(margin, y, W - margin, y, '#1F5D42', 2);
-  y += 12;
-  txt("Ending Cash Balance", margin, y, 14, 'bold', '#1F2A24');
-  txt(peso(endingBalance), W - margin, y, 14, 'bold', '#1F2A24', 'right');
-  y += lh(14) + 30;
+  const html = `
+    <div class="statement-print-area" id="statement-capture-target" style="background:#fff; padding:24px; max-width:720px; margin:0 auto; font-family:Inter,sans-serif; color:#1F2A24;">
+      <div class="statement-header" style="text-align:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1.5px dashed #ddd;">
+        <h3 style="font-size:16px; margin-bottom:4px; font-weight:bold;">${esc(org.orgName || "Organization Name")}</h3>
+        <p style="font-size:12px; color:#6E7A72; margin-bottom:4px;">PUP Unisan Campus${org.schoolYear ? ' • S.Y. ' + esc(org.schoolYear) : ''}</p>
+        <h4 style="font-size:13px; margin-bottom:4px; font-weight:bold;">STATEMENT OF RECEIPTS AND DISBURSEMENTS</h4>
+        <p style="font-size:12px; color:#6E7A72;">For the period: ${esc(periodLabel)}</p>
+      </div>
 
-  const sigWidth = (W - margin * 2 - 40) / 2;
-  txt("Prepared by:", margin, y, 12, 'normal', '#6E7A72');
-  txt("Noted by:", margin + sigWidth + 40, y, 12, 'normal', '#6E7A72');
-  y += 30;
-  line(margin, y, margin + sigWidth, y, '#1F2A24', 1);
-  line(margin + sigWidth + 40, y, margin + sigWidth * 2 + 40, y, '#1F2A24', 1);
-  y += 8;
-  txt(org.treasurerName || '_______________________', margin, y, 12, 'bold', '#1F2A24');
-  txt(org.presidentName || '_______________________', margin + sigWidth + 40, y, 12, 'bold', '#1F2A24');
-  y += lh(12);
-  txt("Treasurer", margin, y, 11, 'normal', '#6E7A72');
-  txt("President / Adviser", margin + sigWidth + 40, y, 11, 'normal', '#6E7A72');
-  y += lh(11) + 10;
+      <div class="statement-row" style="display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; font-family:'IBM Plex Mono',monospace; border-top:1px solid #ddd; margin-top:2px; padding-top:8px; font-weight:600;">
+        <span>Beginning Cash Balance</span><b>${peso(beginningBalance)}</b>
+      </div>
 
-  txt(`Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder`, W/2, y, 11, 'normal', '#6E7A72', 'center');
+      <h4 style="margin-top:18px; font-size:13px; font-weight:bold; color:#163F2D;">Receipts</h4>
+      ${incomeRows}
+      <div class="statement-row" style="display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; font-family:'IBM Plex Mono',monospace; border-top:1px solid #ddd; margin-top:2px; padding-top:8px; font-weight:600;">
+        <span>Total Receipts</span><b style="color:#2F7D53;">${peso(totalReceipts)}</b>
+      </div>
 
-  // Let the WebView finish compositing
-  await new Promise(r => setTimeout(r, 150));
+      <h4 style="margin-top:18px; font-size:13px; font-weight:bold; color:#163F2D;">Disbursements</h4>
+      ${expenseRows}
+      <div class="statement-row" style="display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; font-family:'IBM Plex Mono',monospace; border-top:1px solid #ddd; margin-top:2px; padding-top:8px; font-weight:600;">
+        <span>Total Disbursements</span><b style="color:#B3423B;">${peso(totalDisbursements)}</b>
+      </div>
 
-  const fileName = `statement-${new Date().toISOString().slice(0,10)}.png`;
+      <div class="statement-row" style="display:flex; justify-content:space-between; padding:6px 0; font-size:14px; font-family:'IBM Plex Mono',monospace; border-top:2px solid #1F5D42; margin-top:10px; padding-top:10px; font-weight:700;">
+        <span>Ending Cash Balance</span><b>${peso(endingBalance)}</b>
+      </div>
 
+      <div style="display:flex; justify-content:space-between; margin-top:28px; gap:16px; text-align:center;">
+        <div style="flex:1; min-width:0;">
+          <p style="font-size:12px; color:#6E7A72; margin-bottom:4px;">Prepared by:</p>
+          <p style="margin-top:22px; border-top:1px solid #1F2A24; padding-top:4px; font-weight:600; font-size:12px;">${esc(org.treasurerName || '_______________________')}</p>
+          <p style="font-size:11px; color:#6E7A72;">Treasurer</p>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <p style="font-size:12px; color:#6E7A72; margin-bottom:4px;">Noted by:</p>
+          <p style="margin-top:22px; border-top:1px solid #1F2A24; padding-top:4px; font-weight:600; font-size:12px;">${esc(org.presidentName || '_______________________')}</p>
+          <p style="font-size:11px; color:#6E7A72;">President / Adviser</p>
+        </div>
+      </div>
+      <p style="margin-top:16px; text-align:center; font-size:11px; color:#6E7A72;">Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder</p>
+    </div>
+  `;
+
+  // ── NATIVE SCREENSHOT PATH (Android) ──
   if (isAndroidApp()) {
     try {
       const plugins = window.Capacitor.Plugins || {};
-      const { Filesystem, Share } = plugins;
+      const { Screenshot, Filesystem, Share } = plugins;
 
-      if (!Filesystem || !Share) {
-        eveAlert(
-          "Export needs the Filesystem and Share plugins. " +
-          "Make sure @capacitor/filesystem and @capacitor/share are installed and synced."
-        , true);
-        document.body.removeChild(canvas);
+      if (!Screenshot) {
+        eveAlert("Screenshot plugin not found. Make sure @capacitor-community/screenshot is installed and synced.", true);
         return;
       }
 
-      const base64Data = canvas.toDataURL('image/png').split(',')[1];
+      let container = document.getElementById('native-screenshot-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'native-screenshot-container';
+        container.style.position = 'absolute';
+        container.style.left = '0';
+        container.style.top = '0';
+        container.style.width = '100%';
+        container.style.zIndex = '-9999';
+        container.style.opacity = '0.001';
+        container.style.pointerEvents = 'none';
+        document.body.appendChild(container);
+      }
+      container.innerHTML = html;
+      void container.offsetHeight;
+      await new Promise(r => setTimeout(r, 400));
 
-      const writeResult = await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: "CACHE",
-        encoding: "base64"
+      const result = await Screenshot.take({
+        quality: 95,
+        format: 'png'
       });
 
-      await Share.share({
-        title: "Export Statement",
-        url: writeResult.uri,
-        dialogTitle: "Save Image"
-      });
+      if (!result || !result.base64) {
+        throw new Error("Screenshot returned empty data");
+      }
+
+      const fileName = `statement-${new Date().toISOString().slice(0,10)}.png`;
+      const base64Data = result.base64;
+
+      if (Filesystem && Share) {
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: "CACHE",
+          encoding: "base64"
+        });
+
+        await Share.share({
+          title: "Financial Statement",
+          text: `Statement for ${org.orgName || 'Organization'} (${periodLabel})`,
+          url: writeResult.uri,
+          dialogTitle: "Share Statement"
+        });
+      } else {
+        const link = document.createElement('a');
+        link.href = `data:image/png;base64,${base64Data}`;
+        link.download = fileName;
+        link.click();
+      }
+
+      container.innerHTML = '';
     } catch (e) {
-      eveAlert("Mobile Export Error: " + e.message, true);
+      eveAlert("Screenshot export failed: " + e.message, true);
     }
-  } else {
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = fileName;
-    link.click();
+    return;
   }
 
-  // Cleanup
-  document.body.removeChild(canvas);
+  // ── DESKTOP FALLBACK (html2canvas) ──
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.position = 'absolute';
+  container.style.left = '-99999px';
+  container.style.top = '-99999px';
+  document.body.appendChild(container);
+
+  try {
+    const html2canvas = await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+    const canvas = await html2canvas.default(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `statement-${new Date().toISOString().slice(0,10)}.png`;
+    link.click();
+  } catch (e) {
+    eveAlert("Desktop export failed. " + e.message, true);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 
