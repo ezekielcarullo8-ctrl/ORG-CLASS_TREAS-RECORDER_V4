@@ -1,4 +1,4 @@
-  /* =========================================================================
+/* =========================================================================
     APP LOCK / OFFLINE DEVICE ACTIVATION
     -------------------------------------------------------------------------
     How this works:
@@ -252,7 +252,22 @@ function setMode(mode) {
 }
 
 function switchMode() {
-  if (!confirm("Switching modes will reload the app. Continue?")) return;
+  const modal = document.getElementById("mode-switch-confirm-modal");
+  if (modal) {
+    modal.classList.remove("hidden");
+  } else {
+    // Fallback in case the confirm modal markup is missing for some reason
+    setMode(isOrg() ? "class" : "org");
+  }
+}
+
+function closeSwitchModeConfirm() {
+  const modal = document.getElementById("mode-switch-confirm-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function confirmSwitchMode() {
+  closeSwitchModeConfirm();
   setMode(isOrg() ? "class" : "org");
 }
 
@@ -326,7 +341,7 @@ if (addAllDesc) addAllDesc.innerHTML = `Select which ${lbl("year levels").toLowe
 
 // Student input placeholder
 const newStudentInput = document.getElementById('new-student-name');
-if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNISAN" : "e.g. Gon Freecs";
+if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.g. Gon Freecs";
     // Nav visibility
   const cashbookNav = document.getElementById("nav-cashbook");
   const classfundNav = document.getElementById("nav-classfund");
@@ -360,21 +375,19 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
   const addAllBtn = document.querySelector(".mode-add-all-btn");
   if (addAllBtn) addAllBtn.innerText = lbl("Add All Year Level");
 
-  // Org-only sections in Summary
-  const summarySection = document.getElementById("summary-section");
-  if (summarySection) {
-    const headers = summarySection.querySelectorAll("h3");
-    headers.forEach(h => {
-      if (h.innerText.includes("Organization Info")) h.innerText = lbl("Organization Info");
-      if (h.innerText.includes("Financial Statement") && isClass()) {
-        h.style.display = "none";
-        let el = h.nextElementSibling;
-        while (el && el.tagName !== "H3") {
-          if (el.tagName === "DIV" || el.tagName === "P" || el.tagName === "BUTTON") el.style.display = "none";
-          el = el.nextElementSibling;
-        }
-      }
-    });
+  // Org-only sections in Summary: Organization/Class Info + Financial Statement
+  // are both wrapped in their own container so they can be shown/hidden as a
+  // whole block instead of fragile sibling-walking (which used to leave
+  // stray dividers/labels behind).
+  const orgInfoSection = document.getElementById("org-info-section");
+  if (orgInfoSection) {
+    orgInfoSection.classList.toggle("hidden", isClass());
+    const orgHeader = orgInfoSection.querySelector("h3");
+    if (orgHeader) orgHeader.innerText = lbl("Organization Info");
+  }
+  const finStmtSection = document.getElementById("financial-statement-section");
+  if (finStmtSection) {
+    finStmtSection.classList.toggle("hidden", isClass());
   }
 
   // Fix Add Student / Add Year Level button text
@@ -383,7 +396,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
 
   // Input placeholders in Summary / Org Info
   const orgName = document.getElementById("org-name");
-  if (orgName) orgName.placeholder = lbl("Organization Name") + " (e.g. BSIT 2A)";
+  if (orgName) orgName.placeholder = lbl("Organization Name") + " (e.g. ITO - PUP UNISAN)";
   const orgTreas = document.getElementById("org-treasurer");
   if (orgTreas) orgTreas.placeholder = lbl("Treasurer Name");
   const orgPres = document.getElementById("org-president");
@@ -456,6 +469,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
   let editingIndex = null;
   let addAllSelected = new Set();
   let editingHistory = { recIdx: null, histIdx: null };
+  let cfLedgerEditing = { type: null, student: null, histIdx: null, id: null };
 
   // ---------- HELPERS ----------
 
@@ -562,6 +576,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
 
   function getMissedWeeks(studentName) {
     const cf = db.classFund;
+    if (!cf.weeklyDue || cf.weeklyDue <= 0) return 0;
     const expected = getClassFundExpected(studentName);
     const paid = cf.records[studentName] ? cf.records[studentName].paid : 0;
     if (paid >= expected) return 0;
@@ -651,33 +666,122 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. ITO - PUP UNI
     renderClassFund();
   }
 
-  function editClassFundPayment(studentName, histIdx) {
-  const rec = db.classFund.records[studentName];
-  if (!rec || !rec.history[histIdx]) return;
-  const entry = rec.history[histIdx];
-
-  const newAmountStr = prompt(`Edit payment amount (was ${peso(entry.amount)}):`, entry.amount);
-  if (newAmountStr === null) return;
-  const newAmount = parseFloat(newAmountStr);
-  if (isNaN(newAmount) || newAmount < 0) return eveAlert("Please enter a valid amount.", true);
-
-  const newDate = prompt(`Edit payment date (YYYY-MM-DD) (was ${entry.date}):`, entry.date);
-  if (newDate === null) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return eveAlert("Invalid date format. Use YYYY-MM-DD.", true);
-
-  const newNote = prompt(`Edit note (was ${entry.note || 'Class Fund'}):`, entry.note || 'Class Fund');
-  if (newNote === null) return;
-
-  rec.paid = round2(rec.paid - entry.amount + newAmount);
-  if (rec.paid < 0) rec.paid = 0;
-
-  entry.amount = round2(newAmount);
-  entry.date = newDate;
-  entry.note = newNote || "Class Fund";
-
-  saveData();
-  renderClassFund();
+function editClassFundPayment(studentName, histIdx) {
+  openCfLedgerEdit('income', studentName, histIdx);
 }
+
+  /* -------------------------------------------------------------------------
+    CLASS FUND LEDGER — FULL SCREEN TRANSACTION EDITOR
+    -------------------------------------------------------------------------
+    Every row in the Class Fund Ledger (both student payments/income and
+    manual expenses) opens this full-screen panel so it can be edited or
+    deleted in one place, instead of only being editable from inside an
+    individual student's expanded card.
+    ------------------------------------------------------------------------- */
+
+  function openCfLedgerEdit(type, a, b) {
+    const modal = document.getElementById('cf-ledger-edit-modal');
+    if (!modal) return;
+    const typeLabel = document.getElementById('cf-ledger-edit-type');
+    const descLabel = document.getElementById('cf-ledger-edit-desc-label');
+    const descInput = document.getElementById('cf-ledger-edit-desc');
+    const dateInput = document.getElementById('cf-ledger-edit-date');
+    const amountInput = document.getElementById('cf-ledger-edit-amount');
+    const noteInput = document.getElementById('cf-ledger-edit-note');
+
+    if (type === 'income') {
+      const name = a, histIdx = b;
+      const rec = db.classFund.records[name];
+      if (!rec || !rec.history[histIdx]) return eveAlert("Couldn't find that payment entry.", true);
+      const entry = rec.history[histIdx];
+
+      cfLedgerEditing = { type: 'income', student: name, histIdx, id: null };
+      typeLabel.innerText = "Income • Student Payment";
+      typeLabel.style.color = "var(--success)";
+      descLabel.innerText = "Student";
+      descInput.value = name;
+      descInput.disabled = true;
+      dateInput.value = entry.date || "";
+      amountInput.value = entry.amount;
+      noteInput.value = entry.note || "";
+    } else {
+      const id = a;
+      const txn = (db.classFund.transactions || []).find(t => String(t.id) === String(id));
+      if (!txn) return eveAlert("Couldn't find that expense entry.", true);
+
+      cfLedgerEditing = { type: 'expense', student: null, histIdx: null, id };
+      typeLabel.innerText = "Expense";
+      typeLabel.style.color = "var(--danger)";
+      descLabel.innerText = "Description";
+      descInput.value = txn.description || "";
+      descInput.disabled = false;
+      dateInput.value = txn.date || "";
+      amountInput.value = txn.amount;
+      noteInput.value = txn.note || "";
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  function closeCfLedgerEdit() {
+    const modal = document.getElementById('cf-ledger-edit-modal');
+    if (modal) modal.classList.add('hidden');
+    cfLedgerEditing = { type: null, student: null, histIdx: null, id: null };
+  }
+
+  function saveCfLedgerEdit() {
+    if (!cfLedgerEditing.type) return;
+    const dateVal = document.getElementById('cf-ledger-edit-date').value;
+    const amount = round2(parseFloat(document.getElementById('cf-ledger-edit-amount').value) || 0);
+    const note = document.getElementById('cf-ledger-edit-note').value.trim();
+    const desc = document.getElementById('cf-ledger-edit-desc').value.trim();
+
+    if (!dateVal) return eveAlert("Please select a date.", true);
+    if (amount <= 0) return eveAlert("Please enter a valid amount.", true);
+
+    if (cfLedgerEditing.type === 'income') {
+      const rec = db.classFund.records[cfLedgerEditing.student];
+      if (!rec || !rec.history[cfLedgerEditing.histIdx]) return eveAlert("That payment entry no longer exists.", true);
+      const entry = rec.history[cfLedgerEditing.histIdx];
+      rec.paid = round2(rec.paid - entry.amount + amount);
+      if (rec.paid < 0) rec.paid = 0;
+      entry.amount = amount;
+      entry.date = dateVal;
+      entry.note = note;
+    } else {
+      const txn = (db.classFund.transactions || []).find(t => String(t.id) === String(cfLedgerEditing.id));
+      if (!txn) return eveAlert("That expense entry no longer exists.", true);
+      if (!desc) return eveAlert("Please enter a description.", true);
+      txn.date = dateVal;
+      txn.amount = amount;
+      txn.note = note;
+      txn.description = desc;
+    }
+
+    saveData();
+    closeCfLedgerEdit();
+    renderClassFund();
+    eveAlert("Transaction updated.");
+  }
+
+  function deleteCfLedgerEdit() {
+    if (!cfLedgerEditing.type) return;
+    if (!confirm("Delete this transaction? This cannot be undone.")) return;
+
+    if (cfLedgerEditing.type === 'income') {
+      const rec = db.classFund.records[cfLedgerEditing.student];
+      if (rec && rec.history[cfLedgerEditing.histIdx]) {
+        const removed = rec.history.splice(cfLedgerEditing.histIdx, 1)[0];
+        rec.paid = round2(Math.max(0, rec.paid - removed.amount));
+      }
+    } else {
+      db.classFund.transactions = (db.classFund.transactions || []).filter(t => String(t.id) !== String(cfLedgerEditing.id));
+    }
+
+    saveData();
+    closeCfLedgerEdit();
+    renderClassFund();
+  }
 
   /* -------------------------------------------------------------------------
    WEEKLY BREAKDOWN — derives per-week payment status from history
@@ -817,17 +921,21 @@ async function exportClassFundWeeklyCSV() {
       weekInfo.style.color = cf.startDate ? "var(--accent)" : "var(--muted)";
     }
 
-    let students = Object.keys(cf.records).sort();
-    const searchTerm = (document.getElementById("cf-search").value || "").toLowerCase();
-    if (searchTerm) students = students.filter(n => n.toLowerCase().includes(searchTerm));
-
+    // Totals (Total Collected / Expected / Missed / Enrolled) are computed
+    // from ALL enrolled students, independent of the search box below —
+    // otherwise typing a search term would silently change the summary cards.
+    const allStudents = Object.keys(cf.records).sort();
     let totalExpected = 0, totalPaid = 0, missedCount = 0;
-    students.forEach(name => {
+    allStudents.forEach(name => {
       totalExpected += getClassFundExpected(name);
       totalPaid += cf.records[name].paid;
       missedCount += getMissedWeeks(name);
     });
     const totalUnpaid = round2(totalExpected - totalPaid);
+
+    let students = allStudents;
+    const searchTerm = (document.getElementById("cf-search").value || "").toLowerCase();
+    if (searchTerm) students = students.filter(n => n.toLowerCase().includes(searchTerm));
 
     // Expenses from class fund transactions
     const totalExpenses = round2((cf.transactions || [])
@@ -840,7 +948,7 @@ async function exportClassFundWeeklyCSV() {
       <div class="summary-card"><h4>Total Collected</h4><p style="color:var(--success)">${peso(totalPaid)}</p></div>
       <div class="summary-card"><h4>Total Expenses</h4><p style="color:var(--danger)">${peso(totalExpenses)}</p></div>
       <div class="summary-card"><h4>Net Balance</h4><p style="color:${netBalance < 0 ? 'var(--danger)' : 'var(--accent-dark)'}">${peso(netBalance)}</p></div>
-      <div class="summary-card"><h4>Enrolled</h4><p>${students.length}</p></div>
+      <div class="summary-card"><h4>Enrolled</h4><p>${allStudents.length}</p></div>
     `;
 
     if (missedCount > 0 && totalUnpaid > 0) {
@@ -855,7 +963,7 @@ async function exportClassFundWeeklyCSV() {
       alertBox.innerHTML = "";
     }
 
-    document.getElementById("cf-count").innerText = `${students.length} student(s) enrolled in Class Fund`;
+    document.getElementById("cf-count").innerText = `${students.length} student(s) shown • ${allStudents.length} enrolled in Class Fund`;
 
     // --- Student Cards (collapsed by default) ---
     if (students.length === 0) {
@@ -924,8 +1032,8 @@ async function exportClassFundWeeklyCSV() {
                       <div class="history-entry">
                         <span>${peso(h.amount)} on ${esc(formatDisplayDate(h.date))}${h.note ? ' • ' + esc(h.note) : ''}</span>
                         <div class="history-actions">
-                          <button class="mini-btn" data-action="edit-hist" data-rec="${idx}" data-hist="${realIdx}">EDIT</button>
-                          <button class="mini-btn mini-delete" data-action="del-hist" data-rec="${idx}" data-hist="${realIdx}">DEL</button>
+                          <button class="mini-btn" onclick="editClassFundPayment('${esc(name)}', ${realIdx})">EDIT</button>
+                          <button class="mini-btn mini-delete" onclick="deleteClassFundPayment('${esc(name)}', ${realIdx})">DEL</button>
                         </div>
                       </div>
                     `;
@@ -939,19 +1047,21 @@ async function exportClassFundWeeklyCSV() {
       }).join("");
     }
 
-    // --- Class Fund Ledger (running balance) ---
+    // --- Class Fund Ledger (running balance, every row tap-to-edit full screen) ---
     if (txnBox) {
       // Build income entries from student histories
       const incomeEntries = [];
       Object.entries(cf.records).forEach(([name, rec]) => {
         rec.history.forEach((h, idx) => {
           incomeEntries.push({
-            sortKey: `${h.date || "0000-00-00"}-INC-${String(idx).padStart(4, '0')}`,
+            sortKey: `${h.date || "0000-00-00"}-INC-${String(idx).padStart(4, '0')}-${name}`,
             type: "income",
             date: h.date,
             description: `Payment from ${name}`,
             amount: h.amount,
             note: h.note || "",
+            student: name,
+            histIdx: idx,
             deletable: false
           });
         });
@@ -984,12 +1094,12 @@ async function exportClassFundWeeklyCSV() {
           const sign = t.type === "income" ? "+" : "−";
           const color = t.type === "income" ? "var(--success)" : "var(--danger)";
           const typeLabel = `<span style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-left:6px;">${t.type}</span>`;
-          const deleteBtn = t.deletable
-            ? `<button class="mini-btn mini-delete" onclick="deleteClassFundTxn('${esc(t.id)}')" style="margin-top:4px;">DEL</button>`
-            : '';
+          const clickAttrs = t.type === "income"
+            ? `data-cf-type="income" data-cf-student="${esc(t.student)}" data-cf-histidx="${t.histIdx}"`
+            : `data-cf-type="expense" data-cf-id="${esc(t.id)}"`;
 
           return `
-            <div class="item-row" style="cursor:default;">
+            <div class="item-row" ${clickAttrs}>
               <div>
                 <b>${esc(t.description)}</b>${typeLabel}<br>
                 <span class="note">${esc(t.date)}${t.note ? ' • ' + esc(t.note) : ''}</span>
@@ -997,11 +1107,20 @@ async function exportClassFundWeeklyCSV() {
               <div style="text-align:right;">
                 <span style="color:${color}; font-weight:900;">${sign}${peso(t.amount)}</span><br>
                 <span class="note">Bal: ${peso(t.balance)}</span>
-                ${deleteBtn}
               </div>
             </div>
           `;
         }).join("");
+
+        txnBox.querySelectorAll('[data-cf-type]').forEach(el => {
+          el.addEventListener('click', () => {
+            if (el.dataset.cfType === 'income') {
+              openCfLedgerEdit('income', el.dataset.cfStudent, parseInt(el.dataset.cfHistidx, 10));
+            } else {
+              openCfLedgerEdit('expense', el.dataset.cfId);
+            }
+          });
+        });
       }
     }
 
@@ -1302,7 +1421,7 @@ function confirmRenameCategory() {
       type: "income",
       date: payDate,
       orNumber: "",
-      category: "Student Payment",
+      category: "Year Levels Payment",
       description: `Payment from ${student}`,
       amount: amountPaying,
       projectId: null,
@@ -1641,7 +1760,6 @@ function renderItemList() {
           
           <input type="number" id="edit-due-${idx}" value="${rec.due}" step="0.01" placeholder="Amount Due">
           <input type="number" id="edit-paid-${idx}" value="${rec.paid}" step="0.01" placeholder="Total Paid">
-          <input type="text" id="edit-note-${idx}" value="${esc(rec.note || '')}" placeholder="Note / remarks (optional)">
                     <div class="row" style="margin-bottom:8px;">
             <input type="date" id="quick-pay-date-${idx}" value="${new Date().toISOString().slice(0,10)}">
             <input type="text" id="quick-pay-note-${idx}" placeholder="Note (optional)">
@@ -1745,7 +1863,7 @@ function renderItemList() {
       type: "income",
       date: new Date().toISOString().slice(0, 10),
       orNumber: "",
-      category: "Student Payment",
+      category: "Year Levels Payment",
       description: `Payment from ${rec.name} — ${currentCategory}`,
       amount: val,
       projectId: null,
@@ -2276,10 +2394,11 @@ function renderItemList() {
     const org = db.orgSettings || {};
 
     // Helper function to replace category label
-    function replaceCategoryLabel(category) {
-      if (category === "Student Payment") return "All Year Level Payment";
-      return category;
-    }
+function replaceCategoryLabel(category) {
+  if (category === "Year Levels Payment") return "All Year Levels Payment";
+  if (category === "All Year Levels Payment") return "All Year Levels Payment";
+  return category;
+}
 
     // Generate income rows with label replacement
     const incomeRows = Object.keys(incomeByCategory).sort().map(c => {
@@ -2336,201 +2455,217 @@ function renderItemList() {
   }
 
   async function exportStatementImage() {
-    const startVal = document.getElementById("stmt-start").value;
-    const endVal = document.getElementById("stmt-end").value;
-    const org = db.orgSettings || {};
+  const startVal = document.getElementById("stmt-start").value;
+  const endVal = document.getElementById("stmt-end").value;
+  const org = db.orgSettings || {};
 
-    const all = [...db.cashbook.transactions].sort((a, b) =>
-      (a.date || "").localeCompare(b.date || "") || String(a.id).localeCompare(String(b.id))
-    );
-    const before = startVal ? all.filter(t => t.date < startVal) : [];
-    const beginningBalance = round2(
-      (db.cashbook.openingBalance || 0) +
-      before.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0) -
-      before.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0)
-    );
-    const inRange = all.filter(t => {
-      if (startVal && t.date < startVal) return false;
-      if (endVal && t.date > endVal) return false;
-      return true;
-    });
-    const incomeTxns = inRange.filter(t => t.type === "income");
-    const expenseTxns = inRange.filter(t => t.type === "expense");
-    const incomeByCategory = {};
-    incomeTxns.forEach(t => { incomeByCategory[t.category] = round2((incomeByCategory[t.category] || 0) + t.amount); });
-    const expenseByCategory = {};
-    expenseTxns.forEach(t => { expenseByCategory[t.category] = round2((expenseByCategory[t.category] || 0) + t.amount); });
-    const totalReceipts = round2(incomeTxns.reduce((s, t) => s + t.amount, 0));
-    const totalDisbursements = round2(expenseTxns.reduce((s, t) => s + t.amount, 0));
-    const endingBalance = round2(beginningBalance + totalReceipts - totalDisbursements);
-    const periodLabel = (startVal || endVal)
-      ? `${startVal ? formatDisplayDate(startVal) : 'Beginning'} to ${endVal ? formatDisplayDate(endVal) : 'Present'}`
-      : "All Recorded Transactions";
+  const all = [...db.cashbook.transactions].sort((a, b) =>
+    (a.date || "").localeCompare(b.date || "") || String(a.id).localeCompare(String(b.id))
+  );
+  const before = startVal ? all.filter(t => t.date < startVal) : [];
+  const beginningBalance = round2(
+    (db.cashbook.openingBalance || 0) +
+    before.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0) -
+    before.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0)
+  );
+  const inRange = all.filter(t => {
+    if (startVal && t.date < startVal) return false;
+    if (endVal && t.date > endVal) return false;
+    return true;
+  });
+  const incomeTxns = inRange.filter(t => t.type === "income");
+  const expenseTxns = inRange.filter(t => t.type === "expense");
+  const incomeByCategory = {};
+  incomeTxns.forEach(t => { incomeByCategory[t.category] = round2((incomeByCategory[t.category] || 0) + t.amount); });
+  const expenseByCategory = {};
+  expenseTxns.forEach(t => { expenseByCategory[t.category] = round2((expenseByCategory[t.category] || 0) + t.amount); });
+  const totalReceipts = round2(incomeTxns.reduce((s, t) => s + t.amount, 0));
+  const totalDisbursements = round2(expenseTxns.reduce((s, t) => s + t.amount, 0));
+  const endingBalance = round2(beginningBalance + totalReceipts - totalDisbursements);
+  const periodLabel = (startVal || endVal)
+    ? `${startVal ? formatDisplayDate(startVal) : 'Beginning'} to ${endVal ? formatDisplayDate(endVal) : 'Present'}`
+    : "All Recorded Transactions";
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const scale = 2;
-    const W = 800;
-    const margin = 40;
-    let y = margin;
+  const scale = 2;
+  const W = 800;
+  const margin = 40;
+  let y = margin;
 
-    function lh(size) { return size * 1.45; }
+  function lh(size) { return size * 1.45; }
 
-    function measureHeight() {
-      let h = margin;
-      h += lh(18) + 4 + lh(12) + 4 + lh(15) + 4 + lh(12) + 20;
-      h += lh(13.5) + 16;
-      h += lh(13) + 8;
-      Object.keys(incomeByCategory).forEach(() => { h += lh(13) + 4; });
-      if (Object.keys(incomeByCategory).length === 0) h += lh(12) + 4;
-      h += lh(13.5) + 8 + 16;
-      h += lh(13) + 8;
-      Object.keys(expenseByCategory).forEach(() => { h += lh(13) + 4; });
-      if (Object.keys(expenseByCategory).length === 0) h += lh(12) + 4;
-      h += lh(13.5) + 8 + 16;
-      h += lh(14) + 30;
-      h += lh(12) + 30 + lh(12) + 10 + lh(11) + margin;
-      return h;
-    }
-
-    const H = measureHeight();
-    canvas.width = W * scale;
-    canvas.height = H * scale;
-    ctx.scale(scale, scale);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, H);
-
-    function txt(text, x, y, size, weight, color, align) {
-      ctx.font = `${weight} ${size}px Inter, sans-serif`;
-      ctx.fillStyle = color || '#1F2A24';
-      ctx.textAlign = align || 'left';
-      ctx.fillText(text, x, y);
-    }
-
-    function line(x1, y1, x2, y2, color, width, dash) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = color || '#ddd';
-      ctx.lineWidth = width || 1;
-      if (dash) ctx.setLineDash(dash);
-      else ctx.setLineDash([]);
-      ctx.stroke();
-    }
-
-    txt(org.orgName || "Organization Name", W/2, y, 18, 'bold', '#1F2A24', 'center');
-    y += lh(18);
-    txt(`PUP Unisan Campus${org.schoolYear ? ' • S.Y. ' + org.schoolYear : ''}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
-    y += lh(12) + 4;
-    txt("STATEMENT OF RECEIPTS AND DISBURSEMENTS", W/2, y, 15, 'bold', '#1F2A24', 'center');
-    y += lh(15);
-    txt(`For the period: ${periodLabel}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
-    y += lh(12) + 20;
-
-    line(margin, y, W - margin, y, '#ddd', 1, [5, 5]);
-    y += 16;
-
-    txt("Beginning Cash Balance", margin, y, 13.5, 'normal', '#1F2A24');
-    txt(peso(beginningBalance), W - margin, y, 13.5, 'bold', '#1F2A24', 'right');
-    y += lh(13.5) + 16;
-
-    txt("Receipts", margin, y, 13, 'bold', '#163F2D');
-    y += lh(13) + 8;
-    Object.keys(incomeByCategory).sort().forEach(c => {
-      const displayCat = c === "Student Payment" ? "All Year Level Payment" : c;
-      txt(displayCat, margin + 10, y, 13, 'normal', '#1F2A24');
-      txt(peso(incomeByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
-      y += lh(13) + 4;
-    });
-    if (Object.keys(incomeByCategory).length === 0) {
-      txt("No receipts recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
-      y += lh(12) + 4;
-    }
-    line(margin, y, W - margin, y, '#ddd', 1);
-    y += 8;
-    txt("Total Receipts", margin, y, 13.5, 'bold', '#1F2A24');
-    txt(peso(totalReceipts), W - margin, y, 13.5, 'bold', '#2F7D53', 'right');
-    y += lh(13.5) + 16;
-
-    txt("Disbursements", margin, y, 13, 'bold', '#163F2D');
-    y += lh(13) + 8;
-    Object.keys(expenseByCategory).sort().forEach(c => {
-      txt(c, margin + 10, y, 13, 'normal', '#1F2A24');
-      txt(peso(expenseByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
-      y += lh(13) + 4;
-    });
-    if (Object.keys(expenseByCategory).length === 0) {
-      txt("No disbursements recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
-      y += lh(12) + 4;
-    }
-    line(margin, y, W - margin, y, '#ddd', 1);
-    y += 8;
-    txt("Total Disbursements", margin, y, 13.5, 'bold', '#1F2A24');
-    txt(peso(totalDisbursements), W - margin, y, 13.5, 'bold', '#B3423B', 'right');
-    y += lh(13.5) + 16;
-
-    line(margin, y, W - margin, y, '#1F5D42', 2);
-    y += 12;
-    txt("Ending Cash Balance", margin, y, 14, 'bold', '#1F2A24');
-    txt(peso(endingBalance), W - margin, y, 14, 'bold', '#1F2A24', 'right');
-    y += lh(14) + 30;
-
-    const sigWidth = (W - margin * 2 - 40) / 2;
-    txt("Prepared by:", margin, y, 12, 'normal', '#6E7A72');
-    txt("Noted by:", margin + sigWidth + 40, y, 12, 'normal', '#6E7A72');
-    y += 30;
-    line(margin, y, margin + sigWidth, y, '#1F2A24', 1);
-    line(margin + sigWidth + 40, y, margin + sigWidth * 2 + 40, y, '#1F2A24', 1);
-    y += 8;
-    txt(org.treasurerName || '_______________________', margin, y, 12, 'bold', '#1F2A24');
-    txt(org.presidentName || '_______________________', margin + sigWidth + 40, y, 12, 'bold', '#1F2A24');
-    y += lh(12);
-    txt("Treasurer", margin, y, 11, 'normal', '#6E7A72');
-    txt("President / Adviser", margin + sigWidth + 40, y, 11, 'normal', '#6E7A72');
-    y += lh(11) + 10;
-
-    txt(`Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder`, W/2, y, 11, 'normal', '#6E7A72', 'center');
-
-    const fileName = `statement-${new Date().toISOString().slice(0,10)}.png`;
-
-    if (isAndroidApp()) {
-      try {
-        const plugins = window.Capacitor.Plugins || {};
-        const { Filesystem, Share } = plugins;
-
-        if (!Filesystem || !Share) {
-          eveAlert(
-            "Export needs the Filesystem and Share plugins. " +
-            "Make sure @capacitor/filesystem and @capacitor/share are installed and synced."
-          , true);
-          return;
-        }
-
-        const base64Data = canvas.toDataURL('image/png').split(',')[1];
-
-        const writeResult = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: "CACHE",
-          encoding: "base64"
-        });
-
-        await Share.share({
-          title: "Export Statement",
-          url: writeResult.uri,
-          dialogTitle: "Save Image"
-        });
-      } catch (e) {
-        eveAlert("Mobile Export Error: " + e.message, true);
-      }
-    } else {
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = fileName;
-      link.click();
-    }
+  function measureHeight() {
+    let h = margin;
+    h += lh(18) + 4 + lh(12) + 4 + lh(15) + 4 + lh(12) + 20;
+    h += lh(13.5) + 16;
+    h += lh(13) + 8;
+    Object.keys(incomeByCategory).forEach(() => { h += lh(13) + 4; });
+    if (Object.keys(incomeByCategory).length === 0) h += lh(12) + 4;
+    h += lh(13.5) + 8 + 16;
+    h += lh(13) + 8;
+    Object.keys(expenseByCategory).forEach(() => { h += lh(13) + 4; });
+    if (Object.keys(expenseByCategory).length === 0) h += lh(12) + 4;
+    h += lh(13.5) + 8 + 16;
+    h += lh(14) + 30;
+    h += lh(12) + 30 + lh(12) + 10 + lh(11) + margin;
+    return h;
   }
+
+  const H = measureHeight();
+
+  // ── FIX: Create, size, inject into DOM, THEN get context ──
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  canvas.style.position = 'fixed';
+  canvas.style.left = '-9999px';
+  canvas.style.top = '-9999px';
+  canvas.style.visibility = 'hidden';
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  // Solid white background (drawn twice to guarantee no transparency)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  function txt(text, x, y, size, weight, color, align) {
+    ctx.font = `${weight} ${size}px Inter, sans-serif`;
+    ctx.fillStyle = color || '#1F2A24';
+    ctx.textAlign = align || 'left';
+    ctx.fillText(text, x, y);
+  }
+
+  function line(x1, y1, x2, y2, color, width, dash) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color || '#ddd';
+    ctx.lineWidth = width || 1;
+    if (dash) ctx.setLineDash(dash);
+    else ctx.setLineDash([]);
+    ctx.stroke();
+  }
+
+  txt(org.orgName || "Organization Name", W/2, y, 18, 'bold', '#1F2A24', 'center');
+  y += lh(18);
+  txt(`PUP Unisan Campus${org.schoolYear ? ' • S.Y. ' + org.schoolYear : ''}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
+  y += lh(12) + 4;
+  txt("STATEMENT OF RECEIPTS AND DISBURSEMENTS", W/2, y, 15, 'bold', '#1F2A24', 'center');
+  y += lh(15);
+  txt(`For the period: ${periodLabel}`, W/2, y, 12, 'normal', '#6E7A72', 'center');
+  y += lh(12) + 20;
+
+  line(margin, y, W - margin, y, '#ddd', 1, [5, 5]);
+  y += 16;
+
+  txt("Beginning Cash Balance", margin, y, 13.5, 'normal', '#1F2A24');
+  txt(peso(beginningBalance), W - margin, y, 13.5, 'bold', '#1F2A24', 'right');
+  y += lh(13.5) + 16;
+
+  txt("Receipts", margin, y, 13, 'bold', '#163F2D');
+  y += lh(13) + 8;
+  Object.keys(incomeByCategory).sort().forEach(c => {
+    const displayCat = c === "Year Levels Payment" ? "All Year Levels Payment" : c;
+    txt(displayCat, margin + 10, y, 13, 'normal', '#1F2A24');
+    txt(peso(incomeByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
+    y += lh(13) + 4;
+  });
+  if (Object.keys(incomeByCategory).length === 0) {
+    txt("No receipts recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
+    y += lh(12) + 4;
+  }
+  line(margin, y, W - margin, y, '#ddd', 1);
+  y += 8;
+  txt("Total Receipts", margin, y, 13.5, 'bold', '#1F2A24');
+  txt(peso(totalReceipts), W - margin, y, 13.5, 'bold', '#2F7D53', 'right');
+  y += lh(13.5) + 16;
+
+  txt("Disbursements", margin, y, 13, 'bold', '#163F2D');
+  y += lh(13) + 8;
+  Object.keys(expenseByCategory).sort().forEach(c => {
+    txt(c, margin + 10, y, 13, 'normal', '#1F2A24');
+    txt(peso(expenseByCategory[c]), W - margin, y, 13, 'normal', '#1F2A24', 'right');
+    y += lh(13) + 4;
+  });
+  if (Object.keys(expenseByCategory).length === 0) {
+    txt("No disbursements recorded for this period.", margin + 10, y, 12, 'normal', '#6E7A72');
+    y += lh(12) + 4;
+  }
+  line(margin, y, W - margin, y, '#ddd', 1);
+  y += 8;
+  txt("Total Disbursements", margin, y, 13.5, 'bold', '#1F2A24');
+  txt(peso(totalDisbursements), W - margin, y, 13.5, 'bold', '#B3423B', 'right');
+  y += lh(13.5) + 16;
+
+  line(margin, y, W - margin, y, '#1F5D42', 2);
+  y += 12;
+  txt("Ending Cash Balance", margin, y, 14, 'bold', '#1F2A24');
+  txt(peso(endingBalance), W - margin, y, 14, 'bold', '#1F2A24', 'right');
+  y += lh(14) + 30;
+
+  const sigWidth = (W - margin * 2 - 40) / 2;
+  txt("Prepared by:", margin, y, 12, 'normal', '#6E7A72');
+  txt("Noted by:", margin + sigWidth + 40, y, 12, 'normal', '#6E7A72');
+  y += 30;
+  line(margin, y, margin + sigWidth, y, '#1F2A24', 1);
+  line(margin + sigWidth + 40, y, margin + sigWidth * 2 + 40, y, '#1F2A24', 1);
+  y += 8;
+  txt(org.treasurerName || '_______________________', margin, y, 12, 'bold', '#1F2A24');
+  txt(org.presidentName || '_______________________', margin + sigWidth + 40, y, 12, 'bold', '#1F2A24');
+  y += lh(12);
+  txt("Treasurer", margin, y, 11, 'normal', '#6E7A72');
+  txt("President / Adviser", margin + sigWidth + 40, y, 11, 'normal', '#6E7A72');
+  y += lh(11) + 10;
+
+  txt(`Generated on ${new Date().toLocaleDateString()} via Treasurer Recorder`, W/2, y, 11, 'normal', '#6E7A72', 'center');
+
+  // Let the WebView finish compositing
+  await new Promise(r => setTimeout(r, 150));
+
+  const fileName = `statement-${new Date().toISOString().slice(0,10)}.png`;
+
+  if (isAndroidApp()) {
+    try {
+      const plugins = window.Capacitor.Plugins || {};
+      const { Filesystem, Share } = plugins;
+
+      if (!Filesystem || !Share) {
+        eveAlert(
+          "Export needs the Filesystem and Share plugins. " +
+          "Make sure @capacitor/filesystem and @capacitor/share are installed and synced."
+        , true);
+        document.body.removeChild(canvas);
+        return;
+      }
+
+      const base64Data = canvas.toDataURL('image/png').split(',')[1];
+
+      const writeResult = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: "CACHE",
+        encoding: "base64"
+      });
+
+      await Share.share({
+        title: "Export Statement",
+        url: writeResult.uri,
+        dialogTitle: "Save Image"
+      });
+    } catch (e) {
+      eveAlert("Mobile Export Error: " + e.message, true);
+    }
+  } else {
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = fileName;
+    link.click();
+  }
+
+  // Cleanup
+  document.body.removeChild(canvas);
+}
 
 
   // ================= SUMMARY TAB =================
