@@ -2997,16 +2997,25 @@ async function exportStatementImage() {
     renderBubble(msgQueue[msgIndex]);
   }
 
-  function dismiss() {
-    if (speechBubble) {
-      speechBubble.classList.remove('show');
-      speechBubble.classList.remove('alert-active');
-    }
-    clearTimeout(bubbleTimer);
-    clearTimeout(idleCycleTimer);
-    if (idleCycleActive) idleCycleTimer = setTimeout(runIdleCycle, 10000);
+function dismiss() {
+  if (speechBubble) {
+    speechBubble.classList.remove('show');
+    speechBubble.classList.remove('alert-active');
   }
-
+  clearTimeout(bubbleTimer);
+  idleCycleTimer = null;
+  
+  /* ── FIX: reset EVE head so she never gets stuck smiling ── */
+  if (eveHead) {
+    eveHead.classList.remove('is-stretching', 'is-smiling');
+    const overlay = document.getElementById("eve-inventory-overlay");
+    if (overlay && !overlay.classList.contains("hidden")) {
+      eveHead.classList.add('is-looking-inventory');
+    }
+  }
+  
+  if (idleCycleActive) idleCycleTimer = setTimeout(runIdleCycle, 10000);
+}
   function checkUrgent() {
     msgQueue = buildQueue();
     const urgent = msgQueue.find(m => m.text && m.text.startsWith('⚠'));
@@ -3105,15 +3114,27 @@ function eveAlert(msg, isError = false) {
     eveHead.addEventListener('mousedown', (e) => {
       e.stopPropagation();
       pauseIdleCycle();
-      if (speechBubble && speechBubble.classList.contains('show')) { next(); }
-      else { triggerJump(); setTimeout(show, 300); }
+      if (speechBubble && speechBubble.classList.contains('show')) dismiss();
+
+      const overlay = document.getElementById("eve-inventory-overlay");
+      if (overlay && !overlay.classList.contains("hidden")) {
+        eveInventoryTapInteraction();
+      } else {
+        openEveInventory();
+      }
     });
     eveHead.addEventListener('touchstart', (e) => {
       e.stopPropagation();
       if (e.cancelable) e.preventDefault();
       pauseIdleCycle();
-      if (speechBubble && speechBubble.classList.contains('show')) { next(); }
-      else { triggerJump(); setTimeout(show, 300); }
+      if (speechBubble && speechBubble.classList.contains('show')) dismiss();
+
+      const overlay = document.getElementById("eve-inventory-overlay");
+      if (overlay && !overlay.classList.contains("hidden")) {
+        eveInventoryTapInteraction();
+      } else {
+        openEveInventory();
+      }
     }, { passive: false });
   }
 
@@ -3143,6 +3164,54 @@ function eveAlert(msg, isError = false) {
   /* --- Expose eveAlert globally --- */
   window.eveAlert = eveAlert;
 
+  /* --- Inventory-open tap: Wall-E easter egg --- */
+function eveInventoryTapInteraction() {
+  if (!eveHead || !speechBubble || !msgEl) return;
+
+  clearTimeout(bubbleTimer);
+
+  // Temporarily remove inventory-look so it doesn't fight the smile transform
+  eveHead.classList.remove('is-looking-inventory');
+
+  // Reset any previous animation
+  eveHead.classList.remove('is-stretching', 'is-smiling');
+  void eveHead.offsetWidth; // force reflow
+
+  // Stretch then smile
+  eveHead.classList.add('is-stretching');
+  setTimeout(() => {
+    eveHead.classList.add('is-smiling');
+  }, 250);
+
+  // First message
+  msgEl.textContent = "OH HELLO THERE!";
+  if (actionsEl) actionsEl.innerHTML = '';
+  speechBubble.classList.remove('alert-active');
+  speechBubble.classList.add('show');
+
+  // Hide first bubble after 2.5s
+  bubbleTimer = setTimeout(() => {
+    speechBubble.classList.remove('show');
+
+    // Second bubble pops up after 1s gap
+    bubbleTimer = setTimeout(() => {
+      msgEl.textContent = "tap the CLOSE button above to close.";
+      speechBubble.classList.add('show');
+
+      // Auto-dismiss after 4s
+      bubbleTimer = setTimeout(() => {
+        dismiss();
+        eveHead.classList.remove('is-stretching', 'is-smiling');
+        // Restore inventory look if still open
+        const overlay = document.getElementById("eve-inventory-overlay");
+        if (overlay && !overlay.classList.contains("hidden")) {
+          eveHead.classList.add('is-looking-inventory');
+        }
+      }, 4000);
+    }, 1000);
+  }, 2500);
+}
+
   /* --- Ignition --- */
 function initEve() {
   if (eveHead && speechBubble) {
@@ -3158,3 +3227,415 @@ function initEve() {
     initEve();
   }
 })();
+
+
+
+/* ═══════════════════════════════════════════════════════════════
+   EVE HEX INVENTORY LOGIC
+   ═══════════════════════════════════════════════════════════════ */
+let eveBlinkInterval = null;
+let calcExpression = "";
+
+function openEveInventory() {
+  const overlay = document.getElementById("eve-inventory-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("hidden");
+
+  // EVE looks toward lower-right where the hexes appear
+  const head = document.getElementById("eveHead");
+  if (head) head.classList.add("is-looking-inventory");
+
+  // Continuous blink so she doesn't look like a statue
+  eveBlinkInterval = setInterval(() => {
+    document.querySelectorAll(".eve-eye").forEach(eye => {
+      eye.classList.add("blink");
+      setTimeout(() => eye.classList.remove("blink"), 140);
+    });
+  }, 2200);
+
+  openEveGuide(); // default view
+}
+
+function closeEveInventory() {
+  const overlay = document.getElementById("eve-inventory-overlay");
+  if (overlay) overlay.classList.add("hidden");
+  
+  const head = document.getElementById("eveHead");
+  if (head) head.classList.remove("is-looking-inventory");
+  
+  if (eveBlinkInterval) {
+    clearInterval(eveBlinkInterval);
+    eveBlinkInterval = null;
+  }
+  // Hide all inner views so it's fresh next time
+  document.getElementById("eve-calc-view").classList.add("hidden");
+  document.getElementById("eve-guide-view").classList.add("hidden");
+  document.getElementById("eve-summary-view").classList.add("hidden");
+}
+
+function openEveCalc() {
+  document.getElementById("eve-calc-view").classList.remove("hidden");
+  document.getElementById("eve-guide-view").classList.add("hidden");
+  document.getElementById("eve-summary-view").classList.add("hidden");
+  
+  const head = document.getElementById("eveHead");
+  if (head) {
+    head.classList.remove('is-stretching', 'is-smiling');
+    head.classList.add('is-looking-inventory');
+  }
+}
+
+function openEveGuide() {
+  document.getElementById("eve-calc-view").classList.add("hidden");
+  document.getElementById("eve-guide-view").classList.remove("hidden");
+  document.getElementById("eve-summary-view").classList.add("hidden");
+  
+  const head = document.getElementById("eveHead");
+  if (head) {
+    head.classList.remove('is-stretching', 'is-smiling');
+    head.classList.add('is-looking-inventory');
+  }
+  renderEveGuide();
+}
+
+function openEveSummary() {
+  document.getElementById("eve-calc-view").classList.add("hidden");
+  document.getElementById("eve-guide-view").classList.add("hidden");
+  document.getElementById("eve-summary-view").classList.remove("hidden");
+  
+  const head = document.getElementById("eveHead");
+  if (head) {
+    head.classList.remove('is-stretching', 'is-smiling');
+    head.classList.add('is-looking-inventory');
+  }
+  renderEveSummary();
+}
+
+function renderEveGuide() {
+  const box = document.getElementById("eve-guide-view");
+  const mode = (typeof isOrg === 'function' && isOrg()) ? "org" : "class";
+
+  const orgHTML = `
+    <div style="max-width:640px; margin:0 auto;">
+
+      <div class="eve-guide-section">
+        <h4>➕ Add Tab</h4>
+        <p><b>Add Collection Category</b> — Enter a collection name (e.g. "Newsette Fee") and the default amount every year level must pay. Tap <b>Add Collection</b> to create the bucket. This does not enroll year levels yet; it only creates the category.</p>
+        <p><b>Record A Payment</b> — Use the searchable dropdowns to pick an existing <b>Collection</b> and a <b>Year Level</b> from your permanent database. Set the <b>Payment Date</b>, add an optional <b>Note</b>, enter the <b>Amount Paying Now</b>, then tap <b>Record Payment</b>. The student is auto-enrolled into that collection if they weren't already, and the payment instantly syncs to your <b>Cash Book</b> as income.</p>
+        <p class="note" style="margin-top:6px;">💡 Year Levels must be added permanently in the <b>Year Level</b> tab before they appear in these dropdowns.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>🎓 Year Level Tab</h4>
+        <p><b>Add Program & Year Level (Permanent)</b> — Type the name (e.g. "BSIT 2") and tap <b>Add Year Level</b>. This adds the entry to the master database so they can be selected across all collections and the Cash Book.</p>
+        <p><b>Student Database</b> — A searchable list of every year level you have added. The count badge shows how many exist. Tap any card to open their <b>Profile</b>.</p>
+        <p><b>Student Profile</b> — Shows a summary grid (Total Due, Total Paid, Overall Balance) and a <b>Breakdown By Collection</b> listing every collection that student belongs to, their paid/due amounts, and status: <span style="color:var(--success)">PAID</span>, <span style="color:var(--warning)">PARTIAL</span>, <span style="color:var(--danger)">UNPAID</span>, or <span style="color:var(--info)">OVERPAID</span>.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>📁 Records Tab</h4>
+        <p><b>Collections A-Z</b> — All collection categories sorted alphabetically. Tap a letter in the right-side alpha index to jump instantly. Tap a collection card to open its detail view.</p>
+        <p><b>Collection Detail</b> — Header shows the collection name. The toolbar has three actions:
+          <br>• <b>+ Add All Year Level</b> — Bulk-enroll students from the database who aren't in this collection yet.
+          <br>• <b>Rename</b> — Change the collection name without losing data.
+          <br>• <b>Export CSV</b> — Download a spreadsheet of all students, dues, paid amounts, balances, and statuses.
+        </p>
+        <p><b>Item Summary</b> — Live totals: Collected, Expected, and Remaining Balance for the whole collection.</p>
+        <p><b>Student Rows</b> — Tap any row to enter <b>Edit Mode</b>. Inside edit mode you can:
+          <br>• Adjust <b>Amount Due</b> or <b>Total Paid</b> manually.
+          <br>• Use <b>Quick Pay</b> (date + note + amount) to log a new installment without leaving the page.
+          <br>• View <b>Payment History</b> — every past payment is listed. Tap <b>EDIT</b> to change date/amount/note, or <b>DEL</b> to remove it (Total Paid recalculates automatically).
+          <br>• <b>SAVE</b> commits changes. <b>REMOVE FROM LIST</b> deletes the student from this collection only (they stay in the database). <b>CANCEL</b> closes edit mode without saving.
+        </p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>💵 Cashbook Tab</h4>
+        <p><b>Summary Cards</b> — Opening Balance, Total Income, Total Expenses, and Cash On Hand. These update live as you add transactions.</p>
+        <p><b>Set Opening Balance</b> — Declare how much cash you started with so the running balance is accurate.</p>
+        <p><b>Projects & Events</b> — Switch to the project tracker where you can budget and liquidate per-event finances separately from the general fund.</p>
+        <p><b>Record Transaction</b> — Toggle between <b>Income</b> and <b>Expense</b>. Fields include:
+          <br>• <b>Date</b> — transaction date.
+          <br>• <b>OR / Voucher No.</b> — for audit trails (optional).
+          <br>• <b>Category</b> — pre-set list (Membership Dues, Event Income, Supplies, Food, etc.).
+          <br>• <b>Description</b> — what the transaction is for.
+          <br>• <b>Amount</b> — numeric value.
+          <br>• <b>Link to Project/Event</b> — optional; ties this entry to a project for liquidation reports.
+          <br>• <b>Notes</b> — extra details.
+          <br>Tap <b>Save Transaction</b> to log it. If you tapped a ledger row to edit, <b>Cancel Edit</b> and <b>Delete This Transaction</b> appear instead.
+        </p>
+        <p><b>Cash Book Ledger</b> — Chronological list with a running balance on every row. Use the <b>Search</b> and <b>Type Filter</b> (All / Income / Expense) to narrow results. Tap any row to load it back into the form for editing. <b>Export CSV</b> downloads the full ledger.</p>
+        <p><b>Projects & Events view</b> — Add a project name and optional budget. The list shows Budget, Spent, Income Raised, and Remaining. Tap a project to see every linked transaction, or tap <b>X</b> to delete the project (linked transactions return to the general fund).</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>📊 Summary Tab</h4>
+        <p><b>Overview Cards</b> — At-a-glance stats: Total Year Levels, Collection Categories, Total Collected, Total Unpaid Balances, Cash Book Balance, and Active Projects.</p>
+        <p><b>Collections Breakdown</b> — Visual progress bars showing collection completion (paid vs. expected).</p>
+        <p><b>Organization Info</b> — Fill in Organization Name, Treasurer Name, President / Adviser Name, and School Year. Tap <b>Save</b>. These names auto-fill the printed Financial Statement.</p>
+        <p><b>Financial Statement</b> — Pick a <b>Start Date</b> and <b>End Date</b>, then tap <b>Generate Statement</b>. It produces a <b>Statement of Receipts and Disbursements</b> with Beginning Balance, categorized Receipts, Total Receipts, categorized Disbursements, Total Disbursements, Ending Balance, and signature lines. You can <b>Export as Text</b> or <b>Export as Image</b> for printing or submission.</p>
+        <p><b>Backup & Restore</b> — <b>Export Backup (JSON)</b> saves all data to a file. <b>Import Backup</b> replaces all current data (use with caution). The status line warns you if your last backup is old. <b>Reset All Data</b> permanently erases everything after double confirmation.</p>
+      </div>
+
+    </div>
+  `;
+
+  const classHTML = `
+    <div style="max-width:640px; margin:0 auto;">
+
+      <div class="eve-guide-section">
+        <h4>➕ Add Tab</h4>
+        <p><b>Add Collection Category</b> — Enter a collection name (e.g. "Field Trip Fee") and the default amount due per student. Tap <b>Add Collection</b> to create the category bucket.</p>
+        <p><b>Record A Payment</b> — Select a <b>Collection</b> and a <b>Student</b> from the searchable dropdowns. Set the <b>Payment Date</b>, add an optional <b>Note</b>, enter the <b>Amount Paying Now</b>, then tap <b>Record Payment</b>. The student is auto-enrolled in that collection if they weren't already, and the payment is recorded in the class ledger.</p>
+        <p class="note" style="margin-top:6px;">💡 Students must be added permanently in the <b>Students</b> tab before they appear in these dropdowns.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>🎓 Students Tab</h4>
+        <p><b>Add Student (Permanent)</b> — Type the student's full name (e.g. "Juan Dela Cruz") and tap <b>Add Student</b>. This adds them to the master roster so they can be selected in collections and the Class Fund.</p>
+        <p><b>Student Database</b> — Searchable list of all students. The count badge shows total enrolled. Tap any card to open their <b>Profile</b>.</p>
+        <p><b>Student Profile</b> — Displays a summary grid (Total Due, Total Paid, Overall Balance) and a breakdown of every collection that student is part of, showing paid/due amounts and status: <span style="color:var(--success)">PAID</span>, <span style="color:var(--warning)">PARTIAL</span>, <span style="color:var(--danger)">UNPAID</span>, or <span style="color:var(--info)">OVERPAID</span>.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>📁 Records Tab</h4>
+        <p><b>Collections A-Z</b> — All class collections sorted alphabetically. Use the right-side letter index to jump quickly. Tap a collection to manage it.</p>
+        <p><b>Collection Detail</b> — Shows the collection name and three toolbar actions:
+          <br>• <b>+ Add All Students</b> — Bulk-enroll every student in the database who isn't already in this collection.
+          <br>• <b>Rename</b> — Change the collection name while keeping all records.
+          <br>• <b>Export CSV</b> — Download a report of all students, dues, paid amounts, balances, and payment statuses.
+        </p>
+        <p><b>Item Summary</b> — Live totals for the entire collection: Collected, Expected, and Balance.</p>
+        <p><b>Student Rows</b> — Tap any student to enter <b>Edit Mode</b>:
+          <br>• Adjust <b>Amount Due</b> or <b>Total Paid</b> directly.
+          <br>• <b>Quick Pay</b> lets you log a new installment (date, note, amount) without leaving the page.
+          <br>• <b>Payment History</b> lists every installment. Tap <b>EDIT</b> to modify, or <b>DEL</b> to delete (Total Paid recalculates automatically).
+          <br>• <b>SAVE</b> commits your changes. <b>REMOVE FROM LIST</b> removes the student from this collection only (they remain in the database). <b>CANCEL</b> exits without saving.
+        </p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>💰 Class Fund Tab</h4>
+        <p><b>Settings</b> — Enter the <b>Weekly Due</b> amount (e.g. ₱20) and the <b>Collection Start Date</b>, then tap <b>Save Settings</b>. The app calculates how many weeks have passed and how much each student should have paid.</p>
+        <p><b>Summary Cards</b> — Total Collected, Total Expenses, Net Balance, and number of Enrolled students.</p>
+        <p><b>Missed Payment Alert</b> — If any student is behind, a red banner shows the total missed weeks across the class and the total unpaid balance.</p>
+        <p><b>Toolbar</b> — <b>+ Add All Students</b> enrolls the entire database into Class Fund. <b>Reset Class Fund</b> clears all payments, expenses, and enrollments. <b>Export Weekly CSV</b> generates a per-week payment status sheet.</p>
+        <p><b>Record Expense</b> — Log what the class fund was spent on (supplies, printing, food, etc.). Enter date, description, amount, and an optional note. Expenses deduct from the Net Balance.</p>
+        <p><b>Student Collections</b> — Each student appears as a card showing paid/expected, missed weeks, last payment date, and a status badge. Tap a card to expand it:
+          <br>• A <b>progress bar</b> shows completion.
+          <br>• <b>Payment inputs</b> (date, amount, note) let you record new weekly payments.
+          <br>• <b>Payment History</b> appears below with EDIT and DEL actions.
+          <br>• <b>Remove from Class Fund</b> deletes that student's tracking and history.
+        </p>
+        <p><b>Class Fund Ledger</b> — A complete running-balance log of all income (student payments) and expenses. Tap any transaction to open a full-screen editor where you can change the date, amount, description, and note, or delete the entry entirely.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>📊 Summary Tab</h4>
+        <p><b>Overview Cards</b> — Total Students, Collection Categories, Total Collected, Total Unpaid Balances, and Class Fund Total.</p>
+        <p><b>Collections Breakdown</b> — Visual progress bars for each collection showing how much has been collected versus the total expected.</p>
+        <p><b>Backup & Restore</b> — <b>Export Backup (JSON)</b> saves your entire database to a file. <b>Import Backup</b> restores from a JSON file (replaces current data). The status line warns if your last backup is old. <b>Reset All Data</b> permanently wipes everything after double confirmation.</p>
+        <p class="note" style="margin-top:6px;">💡 Class mode hides the Organization Info and Financial Statement sections because those are designed for org-wide GA/audit reporting.</p>
+      </div>
+
+    </div>
+  `;
+
+  box.innerHTML = (mode === "org") ? orgHTML : classHTML;
+}
+
+function renderEveSummary() {
+  const box = document.getElementById("eve-summary-view");
+  if (!box) return;
+
+  const mode = (typeof isOrg === 'function' && isOrg()) ? "org" : "class";
+  const cats = Object.keys(db.categories || {}).sort((a, b) => a.localeCompare(b));
+  let totalDue = 0, totalPaid = 0;
+  cats.forEach(cat => {
+    const c = db.categories[cat];
+    totalDue += c.records.reduce((s, r) => s + r.due, 0);
+    totalPaid += c.records.reduce((s, r) => s + r.paid, 0);
+  });
+
+  let html = '<div style="max-width:640px; margin:0 auto;">';
+
+  /* ═══════ SUMMARY SECTION ═══════ */
+  html += `<div class="eve-guide-section" style="border-left:3px solid var(--accent);">`;
+  html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+  html += `<span class="eve-summary-badge" style="background:var(--accent);">Summary</span> Overview</h4>`;
+  html += `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:12px;">`;
+  html += `<div class="eve-summary-card"><h4>Total ${esc(lbl("Year Levels"))}</h4><p>${db.students.length}</p></div>`;
+  html += `<div class="eve-summary-card"><h4>Collections</h4><p>${cats.length}</p></div>`;
+  html += `<div class="eve-summary-card"><h4>Total Collected</h4><p style="color:var(--success);">${peso(totalPaid)}</p></div>`;
+  html += `<div class="eve-summary-card"><h4>Total Unpaid</h4><p style="color:var(--danger);">${peso(round2(totalDue - totalPaid))}</p></div>`;
+
+  if (mode === "org" && typeof computeCashbookTotals === 'function') {
+    const cb = computeCashbookTotals();
+    html += `<div class="eve-summary-card"><h4>Cash Book Balance</h4><p style="color:${cb.cashOnHand < 0 ? 'var(--danger)' : '#E9F0EB'};">${peso(cb.cashOnHand)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Active Projects</h4><p>${db.projects.length}</p></div>`;
+  } else if (mode === "class") {
+    const cf = db.classFund || {};
+    const totalCfPaid = Object.values(cf.records || {}).reduce((s, r) => s + (r.paid || 0), 0);
+    const totalCfExp  = round2((cf.transactions || []).filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0));
+    html += `<div class="eve-summary-card"><h4>Class Fund Total</h4><p style="color:var(--success);">${peso(totalCfPaid)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Class Fund Net</h4><p style="color:${(totalCfPaid - totalCfExp) < 0 ? 'var(--danger)' : '#E9F0EB'};">${peso(round2(totalCfPaid - totalCfExp))}</p></div>`;
+  }
+  html += `</div></div>`;
+
+  /* ═══════ CASHBOOK SECTION (Org only) ═══════ */
+  if (mode === "org" && typeof computeCashbookTotals === 'function') {
+    const cb = computeCashbookTotals();
+    html += `<div class="eve-guide-section" style="border-left:3px solid var(--success);">`;
+    html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+    html += `<span class="eve-summary-badge" style="background:var(--success);">Cashbook</span> Ledger</h4>`;
+    html += `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:12px;">`;
+    html += `<div class="eve-summary-card"><h4>Opening Balance</h4><p>${peso(cb.opening)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Total Income</h4><p style="color:var(--success);">${peso(cb.totalIncome)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Total Expenses</h4><p style="color:var(--danger);">${peso(cb.totalExpense)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Cash On Hand</h4><p style="color:${cb.cashOnHand < 0 ? 'var(--danger)' : '#E9F0EB'};">${peso(cb.cashOnHand)}</p></div>`;
+    html += `</div>`;
+
+    const recent = [...(db.cashbook.transactions || [])]
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      .slice(0, 5);
+    if (recent.length) {
+      html += `<p class="note" style="margin-bottom:8px; font-weight:600; color:#8FA096;">Recent Transactions</p>`;
+      html += `<div style="display:flex; flex-direction:column; gap:6px;">`;
+      recent.forEach(t => {
+        const sign = t.type === "income" ? "+" : "−";
+        const color = t.type === "income" ? "var(--success)" : "var(--danger)";
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(233,240,235,0.08); border-radius:var(--radius-sm); font-size:12px;">`;
+        html += `<span style="font-weight:500; color:#E9F0EB;">${esc(t.description)} <span style="color:var(--muted); font-size:11px;">${esc(t.date)}</span></span>`;
+        html += `<span style="color:${color}; font-weight:700; font-family:'IBM Plex Mono',monospace;">${sign}${peso(t.amount)}</span>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  /* ═══════ CLASS FUND SECTION (Class only) ═══════ */
+  if (mode === "class") {
+    const cf = db.classFund || {};
+    const weekly = cf.weeklyDue || 0;
+    const currentWeek = getExpectedWeeks(cf.startDate);
+    const allNames = Object.keys(cf.records || {}).sort();
+    let cfPaid = 0, cfExpected = 0, missed = 0;
+    allNames.forEach(n => {
+      cfPaid += cf.records[n].paid || 0;
+      cfExpected += getClassFundExpected(n);
+      missed += getMissedWeeks(n);
+    });
+    const cfExp = round2((cf.transactions || []).filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0));
+    const net = round2(cfPaid - cfExp);
+
+    html += `<div class="eve-guide-section" style="border-left:3px solid var(--warning);">`;
+    html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+    html += `<span class="eve-summary-badge" style="background:var(--warning); color:#1F2A24;">Class Fund</span> Weekly Tracker</h4>`;
+    html += `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:12px;">`;
+    html += `<div class="eve-summary-card"><h4>Weekly Due</h4><p>${peso(weekly)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Current Week</h4><p>${cf.startDate ? 'Week ' + currentWeek : '—'}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Total Collected</h4><p style="color:var(--success);">${peso(cfPaid)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Total Expenses</h4><p style="color:var(--danger);">${peso(cfExp)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Net Balance</h4><p style="color:${net < 0 ? 'var(--danger)' : '#E9F0EB'};">${peso(net)}</p></div>`;
+    html += `<div class="eve-summary-card"><h4>Enrolled</h4><p>${allNames.length}</p></div>`;
+    html += `</div>`;
+
+    if (missed > 0) {
+      html += `<div style="background:linear-gradient(135deg, rgba(179,66,59,0.12), rgba(184,135,47,0.06)); border:1.5px dashed var(--danger); border-radius:var(--radius); padding:10px; text-align:center; margin-bottom:12px;">`;
+      html += `<p style="font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:700; color:var(--danger); margin:0;">${missed} total missed week(s)</p>`;
+      html += `</div>`;
+    }
+
+    // Recent class-fund activity
+    const recentCf = [];
+    Object.entries(cf.records || {}).forEach(([name, rec]) => {
+      (rec.history || []).forEach((h, i) => {
+        recentCf.push({ type: 'income', date: h.date, desc: `Payment from ${name}`, amount: h.amount, key: `${h.date}-I-${i}-${name}` });
+      });
+    });
+    (cf.transactions || []).forEach(t => {
+      recentCf.push({ type: 'expense', date: t.date, desc: t.description, amount: t.amount, key: `${t.date}-E-${t.id}` });
+    });
+    recentCf.sort((a, b) => b.key.localeCompare(a.key));
+    const recentCfSlice = recentCf.slice(0, 5);
+    if (recentCfSlice.length) {
+      html += `<p class="note" style="margin-bottom:8px; font-weight:600; color:#8FA096;">Recent Activity</p>`;
+      html += `<div style="display:flex; flex-direction:column; gap:6px;">`;
+      recentCfSlice.forEach(t => {
+        const sign = t.type === "income" ? "+" : "−";
+        const color = t.type === "income" ? "var(--success)" : "var(--danger)";
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(233,240,235,0.08); border-radius:var(--radius-sm); font-size:12px;">`;
+        html += `<span style="font-weight:500; color:#E9F0EB;">${esc(t.desc)} <span style="color:var(--muted); font-size:11px;">${esc(t.date)}</span></span>`;
+        html += `<span style="color:${color}; font-weight:700; font-family:'IBM Plex Mono',monospace;">${sign}${peso(t.amount)}</span>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  /* ═══════ COLLECTIONS BREAKDOWN ═══════ */
+  if (cats.length > 0) {
+    html += `<div class="eve-guide-section" style="border-left:3px solid var(--accent-2);">`;
+    html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+    html += `<span class="eve-summary-badge" style="background:var(--accent-2);">Collections</span> All Categories</h4>`;
+    html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    cats.forEach(cat => {
+      const c = db.categories[cat];
+      const due = c.records.reduce((s, r) => s + r.due, 0);
+      const paid = c.records.reduce((s, r) => s + r.paid, 0);
+      const balance = round2(due - paid);
+      const pct = due > 0 ? Math.min(100, (paid / due) * 100) : 0;
+      const color = balance > 0 ? 'var(--danger)' : 'var(--success)';
+      html += `<div style="padding:10px 12px; background:rgba(255,255,255,0.03); border:1px solid rgba(233,240,235,0.08); border-radius:var(--radius-sm);">`;
+      html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">`;
+      html += `<b style="font-size:13px; color:#E9F0EB;">${esc(cat)}</b>`;
+      html += `<span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:${color};">${peso(paid)} / ${peso(due)}</span>`;
+      html += `</div>`;
+      html += `<div class="progress-bar" style="height:6px; margin-bottom:4px; background:rgba(255,255,255,0.05);"><div class="progress-fill" style="width:${pct}%;"></div></div>`;
+      html += `<div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted);">`;
+      html += `<span>${c.records.length} ${esc(lbl("year level").toLowerCase())}(s)</span>`;
+      html += `<span>Balance: ${peso(balance)}</span>`;
+      html += `</div>`;
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  /* ═══════ SYSTEM / BACKUP STATUS ═══════ */
+  const lastBackup = localStorage.getItem("lastBackupTime");
+  html += `<div class="eve-guide-section" style="border-left:3px solid var(--info);">`;
+  html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">`;
+  html += `<span class="eve-summary-badge" style="background:var(--info);">System</span> Status</h4>`;
+  if (!lastBackup) {
+    html += `<p style="color:var(--danger); font-size:12px; font-weight:600; margin:0;">⚠ You have never backed up your data yet.</p>`;
+  } else {
+    const days = Math.floor((Date.now() - parseInt(lastBackup, 10)) / (1000 * 60 * 60 * 24));
+    if (days <= 0) html += `<p style="color:var(--success); font-size:12px; font-weight:600; margin:0;">✓ Last backup: today</p>`;
+    else if (days <= 7) html += `<p style="color:${days <= 3 ? 'var(--success)' : 'var(--warning)'}; font-size:12px; font-weight:600; margin:0;">Last backup: ${days} day(s) ago</p>`;
+    else html += `<p style="color:var(--danger); font-size:12px; font-weight:600; margin:0;">⚠ Last backup: ${days} days ago — back up soon!</p>`;
+  }
+  html += `<p class="note" style="margin-top:6px; color:var(--muted);">Mode: <b style="color:#E9F0EB;">${mode === 'org' ? 'Organization Treasurer' : 'Class Treasurer'}</b></p>`;
+  html += `</div>`;
+
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+/* Calculator helpers */
+function calcInput(v) {
+  if (calcExpression === "0" && v !== ".") calcExpression = "";
+  calcExpression += v;
+  document.getElementById("calc-display").innerText = calcExpression || "0";
+}
+function calcClear() { calcExpression = ""; document.getElementById("calc-display").innerText = "0"; }
+function calcBack() { calcExpression = calcExpression.slice(0, -1); document.getElementById("calc-display").innerText = calcExpression || "0"; }
+function calcEqual() {
+  try {
+    const safe = calcExpression.replace(/[^0-9+\-*/.]/g, "");
+    const res = Function('"use strict"; return (' + safe + ')')();
+    calcExpression = String(Math.round((res + Number.EPSILON) * 100) / 100);
+    document.getElementById("calc-display").innerText = calcExpression;
+  } catch (e) { document.getElementById("calc-display").innerText = "Err"; }
+}
