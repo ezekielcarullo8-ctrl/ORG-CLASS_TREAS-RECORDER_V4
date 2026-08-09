@@ -566,11 +566,14 @@ button:active {
   border-color: var(--hairline-strong);
 }
 
+/* AFTER */
 .item-toolbar {
   display: flex;
   gap: 10px;
   margin-bottom: 18px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;        /* changed: prevent vertical stacking */
+  overflow-x: auto;         /* added: scroll if needed */
+  padding-bottom: 6px;      /* added: room for scrollbar */
 }
 
 .item-toolbar button {
@@ -1487,13 +1490,20 @@ body.style-cyberpunk .device-id-box {
     font-size: 22px;
   }
 
+/* REPLACE this entire block inside the 480px media query */
   .item-toolbar {
-    flex-direction: column;
+    flex-direction: row;       /* changed from column */
+    flex-wrap: nowrap;         /* added */
+    overflow-x: auto;          /* added */
     gap: 8px;
   }
-
   .item-toolbar button {
-    width: 100%;
+    width: auto;               /* changed from 100% */
+    flex: 1 0 auto;            /* added */
+    min-width: 0;              /* added */
+    white-space: nowrap;       /* added */
+    font-size: 11px;           /* added: tighter fit */
+    padding: 10px 14px;        /* added: tighter fit */
   }
 
   .inside-box-full {
@@ -2393,4 +2403,202 @@ body.style-cyberpunk .eve-zipper::after {
   40%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
   70%  { transform: translateY(-50%) scaleX(1); opacity: 1; }
   100% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EVE HEX INVENTORY — compact pill buttons
+   ═══════════════════════════════════════════════════════════════ */
+
+#eve-inventory-overlay {
+  overflow: hidden !important;
+}
+
+.eve-inventory-panel {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-left: 110px !important;
+}
+
+/* Pill buttons anchored beside EVE */
+/* REPLACE the existing .hex-hive block */
+.hex-hive {
+  position: absolute;
+  left: 118px;
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  width: 90px;
+  height: 126px;   /* was 90px — room for 3 pills */
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.hex-cell {
+  position: absolute;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1a2420, #2a3830);
+  border: 1.5px solid #3fa873;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 10px rgba(63,168,115,0.2), inset 0 0 6px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+}
+
+.hex-cell:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 18px rgba(63,168,115,0.45);
+  background: linear-gradient(135deg, #203028, #3a4840);
+}
+
+.hex-cell:active { transform: scale(0.95); }
+
+.hex-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #e9f0eb;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Stack them diagonally beside EVE */
+.hex-cell:nth-child(1) { left: 0;  bottom: 0;  }
+.hex-cell:nth-child(2) { left: 0;  bottom: 36px; }
+/* ADD after the existing nth-child(2) rule */
+.hex-cell:nth-child(3) { left: 0; bottom: 72px; }
+
+/* EVE looks toward the inventory when open */
+.eve-head.is-looking-inventory .eve-eye {
+  transform: translate(10px, 12px) scale(1.1, 1.15) !important;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Calculator */
+.calc-body { max-width: 420px; margin: 0 auto; }
+
+.calc-display {
+  background: rgba(0,0,0,0.35);
+  border: 1.5px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 36px;
+  text-align: right;
+  color: #e9f0eb;
+  text-shadow: 0 0 12px rgba(233,240,235,0.3);
+  margin-bottom: 14px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.calc-keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.calc-keys button {
+  height: 64px;
+  padding: 0;
+  font-size: 22px;
+  background: linear-gradient(135deg, #3a4a42, #2a3830);
+  color: #e9f0eb;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+
+.calc-keys button:active {
+  transform: scale(0.96);
+  background: linear-gradient(135deg, #4a5a52, #3a4a42);
+}
+
+.calc-keys .calc-eq {
+  background: linear-gradient(135deg, #2a5d42, #1f4a32);
+  color: #fff;
+  border-color: rgba(63,168,115,0.25);
+}
+
+/* Guide cards inside inventory */
+.eve-guide-section {
+  background: linear-gradient(135deg, rgba(26,36,32,0.85), rgba(18,26,22,0.95));
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.eve-guide-section h4 {
+  font-family: 'Fraunces', serif;
+  color: var(--accent-2);
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.eve-guide-section p {
+  color: #9da3a0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+.eve-guide-section p:last-child { margin-bottom: 0; }
+
+/* ── Mobile adjustments ── */
+@media (max-width: 480px) {
+  .eve-inventory-panel {
+    padding-left: 80px !important;
+  }
+  .hex-hive {
+    left: 96px;
+    bottom: calc(58px + env(safe-area-inset-bottom));
+    width: 70px;
+    height: 80px;
+  }
+  .hex-cell {
+    width: 44px;
+    height: 26px;
+  }
+  .hex-cell:nth-child(1) { left: 0; bottom: 0; }
+  .hex-cell:nth-child(2) { left: 0; bottom: 32px; }
+  .hex-cell:nth-child(3) { left: 0; bottom: 64px; }
+  .hex-inner { font-size: 8px; letter-spacing: 0.2px; }
+}
+
+/* EVE Inventory Dashboard Cards */
+.eve-summary-card {
+  background: linear-gradient(135deg, rgba(26,36,32,0.92), rgba(18,26,22,0.98));
+  border: 1px solid rgba(233, 240, 235, 0.10);
+  border-radius: var(--radius);
+  padding: 14px 10px;
+  text-align: center;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.eve-summary-card h4 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #8FA096;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.eve-summary-card p {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+  color: #E9F0EB;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.eve-summary-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
 }
