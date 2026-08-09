@@ -38,7 +38,7 @@ jobs:
         npm install @capacitor/device @capacitor/filesystem @capacitor/share
         npm install @capawesome/capacitor-screenshot
         npm install @capacitor/assets --save-dev
-        echo "{\"appId\": \"com.ezek.orgclasstreasrecV4\", \"appName\": \"$APP_NAME\", \"webDir\": \"www\"}" > capacitor.config.json
+        echo "{\"appId\": \"com.ezek.orgtreas_recv2_0\", \"appName\": \"$APP_NAME\", \"webDir\": \"www\"}" > capacitor.config.json
         npx cap add android
 
     - name: Obfuscate JavaScript
@@ -68,16 +68,16 @@ jobs:
 
     - name: Full Package Isolation
       run: |
-        sed -i 's/applicationId ".*"/applicationId "com.ezek.orgclasstreasrecV4"/' android/app/build.gradle
-        sed -i 's/package=".*"/package="com.ezek.orgclasstreasrecV4"/' android/app/src/main/AndroidManifest.xml
+        sed -i 's/applicationId ".*"/applicationId "com.ezek.orgtreas_recv2_0"/' android/app/build.gradle
+        sed -i 's/package=".*"/package="com.ezek.orgtreas_recv2_0"/' android/app/src/main/AndroidManifest.xml
         find android/app/src/main/ -type f -name "AndroidManifest.xml" \
-          -exec sed -i -E 's/android:authorities="[^"]*\.fileprovider"/android:authorities="com.ezek.orgclasstreasrecV4.fileprovider"/g' {} +
+          -exec sed -i -E 's/android:authorities="[^"]*\.fileprovider"/android:authorities="com.ezek.orgtreas_recv2_0.fileprovider"/g' {} +
         find android/app/src/main/ -type f -name "MainActivity.java" \
-          -exec sed -i 's/^package .*;/package com.ezek.orgclasstreasrecV4;/' {} +
-        mkdir -p android/app/src/main/java/com/ezek/orgclasstreasrecV4
+          -exec sed -i 's/^package .*;/package com.ezek.orgtreas_recv2_0;/' {} +
+        mkdir -p android/app/src/main/java/com/ezek/orgtreas_recv2_0
         find android/app/src/main/java -name "MainActivity.java" \
-          ! -path "*/com/ezek/orgclasstreasrecV4/*" \
-          -exec cp {} android/app/src/main/java/com/ezek/orgclasstreasrecV4/MainActivity.java \;
+          ! -path "*/com/ezek/orgtreas_recv2_0/*" \
+          -exec cp {} android/app/src/main/java/com/ezek/orgtreas_recv2_0/MainActivity.java \;
 
     - name: Set up JDK 21
       uses: actions/setup-java@v4
