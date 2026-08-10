@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -214,6 +215,7 @@
 <button onclick="addAllStudents()">+ <span class="mode-add-all-btn">Add All Year Level</span></button>
         <button onclick="renameCategory()">Rename</button>
         <button onclick="exportCategoryCSV()">Export CSV</button>
+        <button onclick="openTransferModal()" style="background: linear-gradient(135deg, var(--accent-2), var(--warning));">⇄ Transfer</button>
       </div>
       <input type="text" id="item-search" placeholder="Search year level in this collection..." oninput="renderItemList()" style="margin-bottom:15px;">
       <div id="item-summary" class="item-summary"></div>
@@ -441,6 +443,21 @@
     <div id="cf-txn-log"></div>
   </div>
 
+  <!-- TRANSFER FUNDS MODAL -->
+<div id="transfer-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 420px;">
+    <h2 style="font-size:20px;">Transfer Funds</h2>
+    <p class="note" style="margin-bottom:15px;">Move money out of <b id="transfer-from-name"></b> into another collection.</p>
+    <select id="transfer-to-select" style="margin-bottom:12px;"></select>
+    <input type="number" id="transfer-amount" placeholder="Amount to transfer" step="0.01">
+    <input type="date" id="transfer-date">
+    <input type="text" id="transfer-note" placeholder="Note (e.g. Remittance completion)">
+    <button class="full-btn" onclick="confirmTransfer()">Transfer</button>
+    <button class="full-btn btn-cancel" onclick="closeTransferModal()" style="margin-top:10px;">Cancel</button>
+    <p class="note" id="transfer-error" style="color:#B3423B; margin-top:10px;"></p>
+  </div>
+</div>
+
 </div>
 
 <nav class="nav-menu">
@@ -547,10 +564,19 @@
     <div class="hex-cell" onclick="openEveSummary()">
       <div class="hex-inner">📊<span>Data</span></div>
     </div>
+    <div class="hex-cell" onclick="openEveNotes()">
+      <div class="hex-inner">📝<span>Notes</span></div>
+    </div>
+    <div class="hex-cell" onclick="openEveLogs()">
+      <div class="hex-inner">⇄<span>Logs</span></div>
+    </div>
   </div>
 
   <div class="fullscreen-panel eve-inventory-panel">
     <div class="fullscreen-header" style="margin-bottom:20px; border-bottom:1.5px dashed var(--hairline); padding-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+      <div id="notes-plus-btn" class="hidden" style="position:fixed; right:20px; top:calc(24px + env(safe-area-inset-top)); z-index:10;">
+      <button onclick="createNewNoteFlow()" style="width:48px; height:48px; border-radius:50%; font-size:22px; padding:0; display:flex; align-items:center; justify-content:center;">+</button>
+    </div>
       <button onclick="closeEveInventory()" style="width:auto; height:auto; padding:10px 18px; background:var(--surface); color:var(--ink); border:1.5px solid var(--hairline); box-shadow:var(--shadow-sm); border-radius:var(--radius-sm); font-size:13px;">← Close</button>
       <h3 style="margin-bottom:0; padding-bottom:0;">EVE Companion</h3>
       <div></div>
@@ -570,8 +596,20 @@
         </div>
       </div>
       <div id="eve-summary-view" class="hidden"></div>
-      <div id="eve-guide-view"></div>
-      
+      <div id="eve-logs-view" class="hidden"></div>
+    <div id="eve-guide-view"></div>
+      <div id="eve-notes-view" class="hidden">
+        <div id="notes-folder-list"></div>
+        <div id="notes-note-list" class="hidden"></div>
+        <div id="notes-editor" class="hidden" style="display:flex; flex-direction:column; gap:10px;">
+          <input type="text" id="note-editor-title" placeholder="Note title" style="margin-bottom:0;">
+          <textarea id="note-editor-body" placeholder="Write your note here..." style="height:50vh; resize:vertical; padding-top:12px; margin-bottom:0;"></textarea>
+          <div class="row" style="margin-bottom:0;">
+            <button class="full-btn" onclick="saveCurrentNote()" style="flex:1;">Save Note</button>
+            <button class="full-btn btn-cancel" onclick="backToNoteList()" style="flex:1;">Back</button>
+          </div>
+        </div>
+      </div>
     </div>
 
 <script src="script.js"></script>
