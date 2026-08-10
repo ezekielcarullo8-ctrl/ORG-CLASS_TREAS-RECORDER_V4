@@ -353,7 +353,7 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
   if (dbAdd) dbAdd.innerText = lbl("Add Program & Year Level (Permanent)");
 
   const dbList = document.getElementById("db-list-header");
-  if (dbList) dbList.innerText = lbl("Student Database"); // same text, but keeps pattern
+  if (dbList) dbList.innerText = isOrg() ? "Year Levels Database" : "Student Database"; // same text, but keeps pattern
 
   // Placeholders
   const sSearch = document.getElementById("search-students-db");
@@ -431,6 +431,26 @@ if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.
     db.classFund.startDate = db.classFund.startDate || new Date().toISOString().slice(0, 10);
     db.classFund.records = db.classFund.records || {};
     db.classFund.transactions = db.classFund.transactions || [];
+    db.transfers = db.transfers || [];
+    db.notepad = db.notepad || { notes: [] };
+// Migrate old folder-based notepad to flat notes
+if (db.notepad.folders && Array.isArray(db.notepad.folders)) {
+  db.notepad.notes = [];
+  db.notepad.folders.forEach(f => {
+    if (f.notes && Array.isArray(f.notes)) {
+      f.notes.forEach(n => {
+        db.notepad.notes.push({
+          id: n.id || Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+          title: (n.title && n.title !== 'Untitled') ? n.title : (f.name || 'Note'),
+          content: n.content || '',
+          updated: n.updated || new Date().toISOString().slice(0, 10)
+        });
+      });
+    }
+  });
+  delete db.notepad.folders;
+}
+db.notepad.notes = db.notepad.notes || [];
   }
 
     function recordClassFundExpense() {
@@ -1462,10 +1482,14 @@ function confirmRenameCategory() {
         const c = db.categories[cat];
         const totalDue = c.records.reduce((s, r) => s + r.due, 0);
         const totalPaid = c.records.reduce((s, r) => s + r.paid, 0);
-                list.innerHTML += `
+        const tOutAll = (db.transfers||[]).filter(t => t.from === cat).reduce((s,t)=>s+t.amount,0);
+const tInAll  = (db.transfers||[]).filter(t => t.to   === cat).reduce((s,t)=>s+t.amount,0);
+const netAll  = round2(totalPaid + tInAll - tOutAll);
+
+list.innerHTML += `
           <div class="card" data-cat="${esc(cat)}">
             <span>${esc(cat)} (${c.records.length} ${lbl("Year Level")})<br>
-            <span class="note">Collected ${peso(totalPaid)} / ${peso(totalDue)}</span></span>
+            <span class="note">Collected ${peso(totalPaid)} / ${peso(totalDue)}${(tInAll||tOutAll)?` • Net: ${peso(netAll)}`:''}</span></span>
             <button class="del-btn" data-action="delete-cat" data-cat="${esc(cat)}">X</button>
           </div>`;
       });
@@ -1705,16 +1729,54 @@ function renderItemList() {
   const totalPaid = catObj.records.reduce((s, r) => s + r.paid, 0);
   const totalBalance = round2(totalDue - totalPaid);
 
-  document.getElementById("item-summary").innerHTML = `
+const tOut = (db.transfers||[]).filter(t => t.from === currentCategory).reduce((s,t)=>s+t.amount,0);
+const tIn  = (db.transfers||[]).filter(t => t.to   === currentCategory).reduce((s,t)=>s+t.amount,0);
+const netCollected = round2(totalPaid + tIn - tOut);
+
+document.getElementById("item-summary").innerHTML = `
     Collected <b>${peso(totalPaid)}</b> &nbsp;|&nbsp;
     Expected <b>${peso(totalDue)}</b> &nbsp;|&nbsp;
     Balance <b style="color:${totalBalance > 0 ? '#B3423B' : '#2F7D53'}">${peso(totalBalance)}</b>
+    ${(tIn||tOut) ? `<br><span class="note">Net after transfers: <b>${peso(netCollected)}</b> (In ${peso(tIn)} / Out ${peso(tOut)})</span>` : ''}
   `;
 
-  if (catObj.records.length === 0) {
+if (catObj.records.length === 0) {
     box.innerHTML = `<p class="note">No ${lbl("year level").toLowerCase()} added to this collection yet. Use "${lbl("Add All Year Level")}" above, or record a payment from the ADD tab.</p>`;
-    return;
   }
+  /* ── TRANSFER TRANSACTION LOGS ──
+     Every fund movement between collections is permanently logged here
+     with date, direction (From → To), amount, and optional note.        */
+  const txfers = (db.transfers||[]).filter(t => t.from === currentCategory || t.to === currentCategory).sort((a,b)=>a.date.localeCompare(b.date));
+  if (txfers.length) {
+    const txferHtml = txfers.map(t => {
+      const isOutgoing = t.from === currentCategory;
+      const directionLabel = isOutgoing ? 'Sent to' : 'Received from';
+      const otherParty = isOutgoing ? t.to : t.from;
+      const sign = isOutgoing ? '−' : '+';
+      const color = isOutgoing ? 'var(--danger)' : 'var(--success)';
+      return `
+        <div class="history-entry" style="padding:10px 0; border-bottom:1px solid rgba(233,240,235,0.08);">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-weight:600; color:#e9f0eb;">${esc(directionLabel)} <b>${esc(otherParty)}</b></span>
+            <span class="note">${esc(t.date)}${t.note ? ' • ' + esc(t.note) : ''}</span>
+          </div>
+          <span style="color:${color}; font-weight:700; font-family:'IBM Plex Mono',monospace; white-space:nowrap; margin-left:12px;">
+            ${sign}${peso(t.amount)}
+          </span>
+        </div>`;
+    }).join('');
+
+    box.innerHTML += `
+      <div style="margin-top:22px; background:linear-gradient(135deg, #141c18, #1a2420); border:1px solid rgba(233,240,235,0.10); border-radius:var(--radius); padding:16px 18px; box-shadow:0 2px 8px rgba(0,0,0,0.35);">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:10px; border-bottom:1.5px dashed rgba(233,240,235,0.10);">
+          <span style="font-size:16px;">⇄</span>
+          <h4 style="margin:0; padding:0; font-size:14px; color:#e9f0eb;">Transfer Transaction Logs</h4>
+          <span class="note" style="margin-left:auto; font-size:11px;">${txfers.length} record(s)</span>
+        </div>
+        ${txferHtml}
+      </div>`;
+  }
+  if (catObj.records.length === 0) return;
 
   const sorted = [...catObj.records]
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -3271,12 +3333,24 @@ function closeEveInventory() {
   document.getElementById("eve-calc-view").classList.add("hidden");
   document.getElementById("eve-guide-view").classList.add("hidden");
   document.getElementById("eve-summary-view").classList.add("hidden");
+  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
+  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
+}
+
+function _hideAllInventoryViews() {
+  const ids = ['eve-calc-view','eve-guide-view','eve-summary-view','eve-logs-view','eve-notes-view','notes-plus-btn'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
 }
 
 function openEveCalc() {
   document.getElementById("eve-calc-view").classList.remove("hidden");
   document.getElementById("eve-guide-view").classList.add("hidden");
   document.getElementById("eve-summary-view").classList.add("hidden");
+  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
+  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
   
   const head = document.getElementById("eveHead");
   if (head) {
@@ -3289,6 +3363,8 @@ function openEveGuide() {
   document.getElementById("eve-calc-view").classList.add("hidden");
   document.getElementById("eve-guide-view").classList.remove("hidden");
   document.getElementById("eve-summary-view").classList.add("hidden");
+  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
+  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
   
   const head = document.getElementById("eveHead");
   if (head) {
@@ -3302,6 +3378,8 @@ function openEveSummary() {
   document.getElementById("eve-calc-view").classList.add("hidden");
   document.getElementById("eve-guide-view").classList.add("hidden");
   document.getElementById("eve-summary-view").classList.remove("hidden");
+  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
+  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
   
   const head = document.getElementById("eveHead");
   if (head) {
@@ -3310,13 +3388,12 @@ function openEveSummary() {
   }
   renderEveSummary();
 }
-
 function renderEveGuide() {
   const box = document.getElementById("eve-guide-view");
   const mode = (typeof isOrg === 'function' && isOrg()) ? "org" : "class";
 
   const orgHTML = `
-    <div style="max-width:640px; margin:0 auto;">
+    <div style="width:100%;">
 
       <div class="eve-guide-section">
         <h4>➕ Add Tab</h4>
@@ -3366,6 +3443,32 @@ function renderEveGuide() {
         </p>
         <p><b>Cash Book Ledger</b> — Chronological list with a running balance on every row. Use the <b>Search</b> and <b>Type Filter</b> (All / Income / Expense) to narrow results. Tap any row to load it back into the form for editing. <b>Export CSV</b> downloads the full ledger.</p>
         <p><b>Projects & Events view</b> — Add a project name and optional budget. The list shows Budget, Spent, Income Raised, and Remaining. Tap a project to see every linked transaction, or tap <b>X</b> to delete the project (linked transactions return to the general fund).</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>⇄ Transfer Funds</h4>
+        <p>Inside any collection's detail view, tap <b>⇄ Transfer</b> to move money from that collection into another. This is useful when you need to reallocate collected funds (e.g., moving leftover money from one project to another, or sending pooled contributions to a central remittance collection).</p>
+        <p>Each transfer is logged with:
+          <br>• <b>Date</b> — when the transfer happened.
+          <br>• <b>From / To</b> — source and destination collections.
+          <br>• <b>Amount</b> — how much was moved.
+          <br>• <b>Note</b> — optional reason (e.g., "Remittance completion").
+        </p>
+        <p>The collection's <b>Net after transfers</b> is shown in the summary bar at the top of the detail view. A full transfer history also appears at the bottom of every collection, showing every incoming and outgoing movement with +/− indicators and full dates.</p>
+        <p class="note" style="margin-top:6px;">💡 You cannot transfer more than the net available balance (total paid in minus previous transfers out plus transfers in). Transfers are permanent and reflected instantly across both collections.</p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>⇄ Transfer Funds</h4>
+        <p>Inside any collection's detail view, tap <b>⇄ Transfer</b> to move collected money from that collection into another. This is helpful when reallocating class funds between different fee categories (e.g., moving excess field-trip money into the graduation fund).</p>
+        <p>Every transfer records:
+          <br>• <b>Date</b> — when the transfer occurred.
+          <br>• <b>From / To</b> — the source and destination collections.
+          <br>• <b>Amount</b> — the exact sum moved.
+          <br>• <b>Note</b> — optional explanation.
+        </p>
+        <p>A complete transaction log appears at the bottom of each collection view, listing all incoming (+) and outgoing (−) transfers with full dates and notes.</p>
+        <p class="note" style="margin-top:6px;">💡 Transfers are limited to the collection's net available balance and are saved permanently in your backup.</p>
       </div>
 
       <div class="eve-guide-section">
@@ -3457,7 +3560,7 @@ function renderEveSummary() {
     totalPaid += c.records.reduce((s, r) => s + r.paid, 0);
   });
 
-  let html = '<div style="max-width:640px; margin:0 auto;">';
+  let html = '<div style="width:100%;">';
 
   /* ═══════ SUMMARY SECTION ═══════ */
   html += `<div class="eve-guide-section" style="border-left:3px solid var(--accent);">`;
@@ -3639,3 +3742,244 @@ function calcEqual() {
     document.getElementById("calc-display").innerText = calcExpression;
   } catch (e) { document.getElementById("calc-display").innerText = "Err"; }
 }
+
+/* ================= COLLECTION TRANSFERS ================= */
+function openTransferModal() {
+  const modal = document.getElementById("transfer-modal");
+  const select = document.getElementById("transfer-to-select");
+  document.getElementById("transfer-from-name").innerText = currentCategory;
+  document.getElementById("transfer-amount").value = "";
+  document.getElementById("transfer-date").value = new Date().toISOString().slice(0,10);
+  document.getElementById("transfer-note").value = "";
+  document.getElementById("transfer-error").innerText = "";
+
+  const others = Object.keys(db.categories).filter(c => c !== currentCategory).sort();
+  select.innerHTML = others.length
+    ? others.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")
+    : `<option disabled>No other collections</option>`;
+
+  modal.classList.remove("hidden");
+}
+
+function closeTransferModal() {
+  document.getElementById("transfer-modal").classList.add("hidden");
+}
+
+function confirmTransfer() {
+  const to = document.getElementById("transfer-to-select").value;
+  const amount = round2(parseFloat(document.getElementById("transfer-amount").value) || 0);
+  const date = document.getElementById("transfer-date").value || new Date().toISOString().slice(0,10);
+  const note = document.getElementById("transfer-note").value.trim();
+  const err = document.getElementById("transfer-error");
+
+  if (!to || !db.categories[to]) { err.innerText = "Pick a destination collection."; return; }
+  if (amount <= 0) { err.innerText = "Enter a valid amount."; return; }
+
+  const catObj = db.categories[currentCategory];
+  const gross = catObj.records.reduce((s,r) => s + r.paid, 0);
+  const out   = (db.transfers||[]).filter(t => t.from === currentCategory).reduce((s,t)=>s+t.amount,0);
+  const inn   = (db.transfers||[]).filter(t => t.to   === currentCategory).reduce((s,t)=>s+t.amount,0);
+  const net   = gross + inn - out;
+
+  if (amount > net) { err.innerText = `Available after prior transfers is only ${peso(net)}.`; return; }
+
+  db.transfers.push({
+    id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+    from: currentCategory, to, amount, date, note
+  });
+  saveData();
+  closeTransferModal();
+  renderItemList();
+  renderCategories();
+  eveAlert(`Transferred ${peso(amount)} to "${to}".`);
+}
+
+/* ================= EVE NOTEPAD ================= */
+function openEveNotes() {
+  _hideAllInventoryViews();
+  const view = document.getElementById("eve-notes-view");
+  if (view) view.classList.remove("hidden");
+  const btn = document.getElementById("notes-plus-btn");
+  if (btn) btn.classList.remove("hidden");
+  
+  renderNotesList();
+  
+  const head = document.getElementById("eveHead");
+  if (head) {
+    head.classList.remove('is-stretching', 'is-smiling');
+    head.classList.add('is-looking-inventory');
+  }
+}
+
+function openEveLogs() {
+  _hideAllInventoryViews();
+  const view = document.getElementById("eve-logs-view");
+  if (view) view.classList.remove("hidden");
+
+  const head = document.getElementById("eveHead");
+  if (head) {
+    head.classList.remove('is-stretching', 'is-smiling');
+    head.classList.add('is-looking-inventory');
+  }
+  renderEveLogs();
+}
+
+function renderEveLogs() {
+  const box = document.getElementById("eve-logs-view");
+  if (!box) return;
+
+  const txfers = (db.transfers || []).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  let html = '<div style="width:100%;">';
+
+  // Header stats
+  const totalTransferred = round2(txfers.reduce((s, t) => s + t.amount, 0));
+  const uniqueCollections = new Set();
+  txfers.forEach(t => { uniqueCollections.add(t.from); uniqueCollections.add(t.to); });
+
+  html += `<div class="eve-guide-section" style="border-left:3px solid var(--accent-2);">`;
+  html += `<h4 style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+  html += `<span class="eve-summary-badge" style="background:var(--accent-2);">⇄ Transfers</span> Transaction Logs</h4>`;
+  html += `<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px;">`;
+  html += `<div class="eve-summary-card"><h4>Total Transfers</h4><p>${txfers.length}</p></div>`;
+  html += `<div class="eve-summary-card"><h4>Total Amount Moved</h4><p style="color:var(--accent-2);">${peso(totalTransferred)}</p></div>`;
+  html += `<div class="eve-summary-card"><h4>Collections Involved</h4><p>${uniqueCollections.size}</p></div>`;
+  html += `</div></div>`;
+
+  if (txfers.length === 0) {
+    html += `<div class="eve-guide-section" style="text-align:center; padding:40px 20px; background:linear-gradient(135deg, #141c18, #1a2420); border:1px solid rgba(233,240,235,0.10);">`;
+    html += `<p style="font-size:28px; margin-bottom:10px;">📭</p>`;
+    html += `<p style="font-weight:600; color:var(--ink); margin-bottom:6px;">No transfers yet</p>`;
+    html += `<p class="note">Transfer funds between collections from the Records tab and they will appear here automatically.</p>`;
+    html += `</div>`;
+  } else {
+    html += `<div class="eve-guide-section" style="border-left:3px solid var(--accent);">`;
+    html += `<h4 style="margin-bottom:12px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:1px;">All Transfer Records</h4>`;
+    html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
+
+    txfers.forEach(t => {
+      html += `<div style="background:linear-gradient(135deg, #141c18, #1a2420); border:1px solid rgba(233,240,235,0.10); border-radius:var(--radius); padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,0.35); transition:all 0.2s ease;">`;
+      html += `<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; flex-wrap:wrap; gap:6px;">`;
+      html += `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">`;
+      html += `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); background:var(--surface-alt); padding:3px 8px; border-radius:6px; border:1px solid var(--hairline);">${esc(t.date)}</span>`;
+      html += `</div>`;
+      html += `<span style="font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; color:var(--accent-2);">${peso(t.amount)}</span>`;
+      html += `</div>`;
+
+      html += `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:${t.note ? '6px' : '0'};">`;
+      html += `<div style="display:flex; align-items:center; gap:6px; background:rgba(179,66,59,0.15); border:1px solid rgba(179,66,59,0.25); padding:5px 10px; border-radius:6px;">`;
+      html += `<span style="font-size:10px; text-transform:uppercase; color:var(--danger); font-weight:700; letter-spacing:0.5px;">From</span>`;
+      html += `<span style="font-weight:600; color:#e9f0eb; font-size:13px;">${esc(t.from)}</span>`;
+      html += `</div>`;
+
+      html += `<span style="color:var(--muted); font-size:14px;">→</span>`;
+
+      html += `<div style="display:flex; align-items:center; gap:6px; background:rgba(47,125,83,0.15); border:1px solid rgba(47,125,83,0.25); padding:5px 10px; border-radius:6px;">`;
+      html += `<span style="font-size:10px; text-transform:uppercase; color:var(--success); font-weight:700; letter-spacing:0.5px;">To</span>`;
+      html += `<span style="font-weight:600; color:#e9f0eb; font-size:13px;">${esc(t.to)}</span>`;
+      html += `</div>`;
+      html += `</div>`;
+
+      if (t.note) {
+        html += `<p class="note" style="margin-top:4px; padding-top:6px; border-top:1px solid var(--hairline);">📝 ${esc(t.note)}</p>`;
+      }
+      html += `</div>`;
+    });
+
+    html += `</div></div>`;
+  }
+
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+let currentNoteId = null;
+
+function renderNotesList() {
+  document.getElementById("notes-folder-list").classList.remove("hidden");
+  document.getElementById("notes-note-list").classList.add("hidden");
+  document.getElementById("notes-editor").classList.add("hidden");
+  currentNoteId = null;
+
+  const box = document.getElementById("notes-folder-list");
+  const np = db.notepad || { notes: [] };
+  
+  if (!np.notes || np.notes.length === 0) {
+    box.innerHTML = `<p class="note" style="text-align:center; margin-top:40px;">No notes yet.<br>Tap the <b>+</b> button to create your first note.</p>`;
+    return;
+  }
+  
+  box.innerHTML = `<div style="display:flex; flex-direction:column; gap:10px;">` +
+    np.notes
+      .sort((a, b) => (b.updated || "").localeCompare(a.updated || ""))
+      .map(n => `
+        <div class="add-all-item" style="cursor:default;">
+          <div style="flex:1; cursor:pointer;" onclick="openNoteEditor('${esc(n.id)}')">
+            <span style="font-weight:600;">📝 ${esc(n.title || 'Untitled')}</span><br>
+            <span class="note">${esc(n.updated || '')}</span>
+          </div>
+          <button class="del-btn" onclick="deleteNote('${esc(n.id)}')" style="margin-left:10px; width:auto; height:auto; padding:6px 12px;">Delete</button>
+        </div>
+      `).join('') + `</div>`;
+}
+
+function createNewNoteFlow() {
+  const raw = prompt("Note title:", "New Note");
+  if (raw === null) return;                 // Cancelled — do nothing
+  const title = raw.trim();
+  if (!title) return;                       // Empty title — do nothing
+  
+  if (!db.notepad) db.notepad = { notes: [] };
+  const id = Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+  db.notepad.notes.push({
+    id,
+    title,
+    content: "",
+    updated: new Date().toISOString().slice(0, 10)
+  });
+  saveData();
+  renderNotesList();
+  openNoteEditor(id);
+}
+
+function openNoteEditor(noteId) {
+  const note = (db.notepad?.notes || []).find(n => n.id === noteId);
+  if (!note) return;
+  currentNoteId = noteId;
+  
+  document.getElementById("notes-folder-list").classList.add("hidden");
+  document.getElementById("notes-note-list").classList.add("hidden");
+  document.getElementById("notes-editor").classList.remove("hidden");
+  document.getElementById("notes-plus-btn").classList.add("hidden");
+  
+  document.getElementById("note-editor-title").value = note.title || "";
+  document.getElementById("note-editor-body").value = note.content || "";
+}
+
+function saveCurrentNote() {
+  const note = (db.notepad?.notes || []).find(n => n.id === currentNoteId);
+  if (!note) return;
+  
+  note.title = document.getElementById("note-editor-title").value.trim() || "Untitled";
+  note.content = document.getElementById("note-editor-body").value;
+  note.updated = new Date().toISOString().slice(0, 10);
+  
+  saveData();
+  backToNoteList();
+}
+
+function backToNoteList() {
+  document.getElementById("notes-editor").classList.add("hidden");
+  document.getElementById("notes-folder-list").classList.remove("hidden");
+  document.getElementById("notes-plus-btn").classList.remove("hidden");
+  renderNotesList();
+}
+
+function deleteNote(noteId) {
+  if (!confirm("Delete this note?")) return;
+  if (!db.notepad || !db.notepad.notes) return;
+  db.notepad.notes = db.notepad.notes.filter(n => n.id !== noteId);
+  saveData();
+  renderNotesList();
+}
+
