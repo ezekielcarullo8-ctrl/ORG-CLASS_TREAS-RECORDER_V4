@@ -2416,25 +2416,34 @@ body.style-cyberpunk .eve-zipper::after {
 .eve-inventory-panel {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-left: 110px !important;
+  max-width: 100% !important;
+  width: 100%;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
 }
 
 /* Pill buttons anchored beside EVE */
 /* REPLACE the existing .hex-hive block */
 .hex-hive {
   position: absolute;
-  left: 118px;
-  bottom: calc(68px + env(safe-area-inset-bottom));
-  width: 90px;
-  height: 126px;   /* was 90px — room for 3 pills */
+  left: 18px;                              /* align with silence button left edge */
+  bottom: calc(4px + env(safe-area-inset-bottom)); /* sit just above bottom / safe-area */
+  width: auto;
+  height: auto;
   z-index: 1001;
   pointer-events: none;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .hex-cell {
-  position: absolute;
-  width: 52px;
-  height: 30px;
+  position: relative;
+  left: auto !important;
+  bottom: auto !important;
+  width: 100px;          /* larger */
+  height: 56px;          /* larger */
   border-radius: 999px;
   background: linear-gradient(135deg, #1a2420, #2a3830);
   border: 1.5px solid #3fa873;
@@ -2443,13 +2452,13 @@ body.style-cyberpunk .eve-zipper::after {
   justify-content: center;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 0 10px rgba(63,168,115,0.2), inset 0 0 6px rgba(0,0,0,0.5);
+  box-shadow: 0 0 12px rgba(63,168,115,0.25), inset 0 0 6px rgba(0,0,0,0.5);
   transition: all 0.2s ease;
 }
 
 .hex-cell:hover {
   transform: scale(1.08);
-  box-shadow: 0 0 18px rgba(63,168,115,0.45);
+  box-shadow: 0 0 22px rgba(63,168,115,0.5);
   background: linear-gradient(135deg, #203028, #3a4840);
 }
 
@@ -2459,21 +2468,15 @@ body.style-cyberpunk .eve-zipper::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
   color: #e9f0eb;
-  font-size: 9px;
+  font-size: 13px;       /* larger text */
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
   pointer-events: none;
   white-space: nowrap;
 }
-
-/* Stack them diagonally beside EVE */
-.hex-cell:nth-child(1) { left: 0;  bottom: 0;  }
-.hex-cell:nth-child(2) { left: 0;  bottom: 36px; }
-/* ADD after the existing nth-child(2) rule */
-.hex-cell:nth-child(3) { left: 0; bottom: 72px; }
 
 /* EVE looks toward the inventory when open */
 .eve-head.is-looking-inventory .eve-eye {
@@ -2550,22 +2553,22 @@ body.style-cyberpunk .eve-zipper::after {
 /* ── Mobile adjustments ── */
 @media (max-width: 480px) {
   .eve-inventory-panel {
-    padding-left: 80px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
-  .hex-hive {
-    left: 96px;
-    bottom: calc(58px + env(safe-area-inset-bottom));
-    width: 70px;
-    height: 80px;
+    .hex-hive {
+    left: 18px;
+    bottom: calc(4px + env(safe-area-inset-bottom));
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: calc(100% - 36px);
   }
   .hex-cell {
-    width: 44px;
-    height: 26px;
+    width: 72px;
+    height: 44px;
   }
-  .hex-cell:nth-child(1) { left: 0; bottom: 0; }
-  .hex-cell:nth-child(2) { left: 0; bottom: 32px; }
-  .hex-cell:nth-child(3) { left: 0; bottom: 64px; }
-  .hex-inner { font-size: 8px; letter-spacing: 0.2px; }
+  .hex-inner { font-size: 10px; letter-spacing: 0.2px; gap: 3px; }
+  .hex-inner span { font-size: 9px; }
 }
 
 /* EVE Inventory Dashboard Cards */
@@ -2601,4 +2604,81 @@ body.style-cyberpunk .eve-zipper::after {
   padding: 2px 8px;
   border-radius: 4px;
   color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARKER NOTE EDITOR & LIST (inside EVE Inventory)
+   ═══════════════════════════════════════════════════════════════ */
+
+#eve-inventory-overlay #note-editor-title,
+#eve-inventory-overlay #note-editor-body {
+  background: #141c18;
+  color: #e9f0eb;
+  border-color: rgba(233, 240, 235, 0.12);
+}
+
+#eve-inventory-overlay #note-editor-title::placeholder,
+#eve-inventory-overlay #note-editor-body::placeholder {
+  color: #5a6b62;
+}
+
+#eve-inventory-overlay #notes-folder-list .add-all-item {
+  background: #141c18;
+  border-color: rgba(233, 240, 235, 0.10);
+}
+
+#eve-inventory-overlay #notes-folder-list .add-all-item:hover {
+  background: #1a2420;
+  border-color: var(--accent);
+}
+
+#eve-inventory-overlay .note {
+  color: #8fa096;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NOTE EDITOR & LIST — force light text on dark background
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Note list items */
+#eve-inventory-overlay #notes-folder-list .add-all-item {
+  background: #141c18;
+  border-color: rgba(233, 240, 235, 0.10);
+  color: #e9f0eb;
+}
+
+#eve-inventory-overlay #notes-folder-list .add-all-item:hover {
+  background: #1a2420;
+  border-color: var(--accent);
+}
+
+#eve-inventory-overlay #notes-folder-list .add-all-item span {
+  color: #e9f0eb;
+}
+
+#eve-inventory-overlay #notes-folder-list .add-all-item .note {
+  color: #8fa096;
+}
+
+/* Editor inputs */
+#eve-inventory-overlay #note-editor-title,
+#eve-inventory-overlay #note-editor-body {
+  background: #141c18;
+  color: #e9f0eb;
+  border-color: rgba(233, 240, 235, 0.15);
+}
+
+#eve-inventory-overlay #note-editor-title::placeholder,
+#eve-inventory-overlay #note-editor-body::placeholder {
+  color: #6b7a71;
+}
+
+/* Editor labels */
+#eve-inventory-overlay #notes-editor label.note {
+  color: #c5d1ca;
+}
+
+/* "No notes yet" message */
+#eve-inventory-overlay #notes-folder-list > .note {
+  color: #8fa096;
 }
