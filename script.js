@@ -340,8 +340,14 @@ const addAllDesc = document.querySelector('#add-all-modal .note');
 if (addAllDesc) addAllDesc.innerHTML = `Select which ${lbl("year levels").toLowerCase()} to enroll in <b id="add-all-cat-name">this collection</b>. Search to filter the list.`;
 
 // Student input placeholder
+// Student input placeholder
 const newStudentInput = document.getElementById('new-student-name');
 if (newStudentInput) newStudentInput.placeholder = isOrg() ? "e.g. BSIT 2" : "e.g. Gon Freecs";
+
+// Student count input is org-mode only (a "year level" has an enrolled
+// headcount; individual class-mode students don't)
+const countWrapper = document.getElementById('new-student-count-wrapper');
+if (countWrapper) countWrapper.classList.toggle('hidden', !isOrg());
     // Nav visibility
   const cashbookNav = document.getElementById("nav-cashbook");
   const classfundNav = document.getElementById("nav-classfund");
@@ -487,7 +493,11 @@ db.notepad.notes = db.notepad.notes || [];
 
   let currentCategory = "";
   let editingIndex = null;
-  let addAllSelected = new Set();
+let addAllSelected = new Set();
+  let quickPaySelected = new Set();
+  let undoStack = [];
+  let redoStack = [];
+  const MAX_UNDO_HISTORY = 50;
   let editingHistory = { recIdx: null, histIdx: null };
   let cfLedgerEditing = { type: null, student: null, histIdx: null, id: null };
 
@@ -507,7 +517,115 @@ db.notepad.notes = db.notepad.notes || [];
   }
 
   function saveData() {
+    // Capture the state as it was *before* this change so it can be
+    // restored on Undo. Any new action clears the Redo history, since
+    // it's now a divergent timeline from whatever was undone.
+    const prevRaw = localStorage.getItem(STORAGE_KEY);
+    if (prevRaw !== null) {
+      undoStack.push({ state: prevRaw, time: Date.now() });
+      if (undoStack.length > MAX_UNDO_HISTORY) undoStack.shift();
+    }
+    redoStack = [];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+
+    const undoBtnLogs = document.getElementById('undo-btn-logs');
+    const redoBtnLogs = document.getElementById('redo-btn-logs');
+    if (undoBtnLogs) undoBtnLogs.disabled = undoStack.length === 0;
+    if (redoBtnLogs) redoBtnLogs.disabled = redoStack.length === 0;
+
+    const undoCount = document.getElementById('undo-count-logs');
+    const redoCount = document.getElementById('redo-count-logs');
+    if (undoCount) undoCount.innerText = undoStack.length;
+    if (redoCount) redoCount.innerText = redoStack.length;
+  }
+
+  function performUndo() {
+    if (undoStack.length === 0) return eveAlert("Nothing to undo.", true);
+    const entry = undoStack.pop();
+    const currentRaw = localStorage.getItem(STORAGE_KEY);
+    redoStack.push({ state: currentRaw, time: Date.now() });
+    if (redoStack.length > MAX_UNDO_HISTORY) redoStack.shift();
+
+    db = JSON.parse(entry.state);
+    migrateDb();
+    localStorage.setItem(STORAGE_KEY, entry.state);
+    refreshAllViews();
+    eveAlert("Undone.");
+  }
+
+  function performRedo() {
+    if (redoStack.length === 0) return eveAlert("Nothing to redo.", true);
+    const entry = redoStack.pop();
+    const currentRaw = localStorage.getItem(STORAGE_KEY);
+    undoStack.push({ state: currentRaw, time: Date.now() });
+    if (undoStack.length > MAX_UNDO_HISTORY) undoStack.shift();
+
+    db = JSON.parse(entry.state);
+    migrateDb();
+    localStorage.setItem(STORAGE_KEY, entry.state);
+    refreshAllViews();
+    eveAlert("Redone.");
+  }
+
+  // Re-renders every view after an Undo/Redo, since the whole database
+  // may have jumped to a very different state than what's on screen.
+  function refreshAllViews() {
+    editingIndex = null;
+    editingHistory = { recIdx: null, histIdx: null };
+    addAllSelected.clear();
+    quickPaySelected.clear();
+
+    renderStudents();
+    renderCategories();
+    renderSummary();
+
+    if (isOrg()) {
+      renderCashbookSummary();
+      renderCashbookList();
+      renderProjects();
+    }
+    if (isClass()) {
+      renderClassFund();
+    }
+
+    loadOrgSettingsForm();
+    updateAppHeader();
+
+    const itemView = document.getElementById('item-view');
+    if (itemView && !itemView.classList.contains('hidden')) {
+      if (currentCategory && db.categories[currentCategory]) {
+        renderItemList();
+      } else {
+        backToCategories();
+      }
+    }
+
+    const profileView = document.getElementById('student-profile-view');
+    if (profileView && !profileView.classList.contains('hidden')) {
+      const nameEl = document.getElementById('profile-student-name');
+      const name = nameEl ? nameEl.innerText : '';
+      if (name && db.students.some(s => s.name === name)) {
+        renderStudentProfile(name);
+      } else {
+        backToStudentList();
+      }
+    }
+
+    const logsView = document.getElementById('eve-logs-view');
+    if (logsView && !logsView.classList.contains('hidden')) renderEveLogs();
+
+    const summaryView = document.getElementById('eve-summary-view');
+    if (summaryView && !summaryView.classList.contains('hidden')) renderEveSummary();
+
+    updateUndoRedoButtons();
   }
 
   function peso(n) {
@@ -560,17 +678,26 @@ db.notepad.notes = db.notepad.notes || [];
 
   // ================= STUDENTS (PERMANENT DATABASE) =================
 
-  function addStudent() {
+function addStudent() {
   const input = document.getElementById("new-student-name");
+  const countInput = document.getElementById("new-student-count");
   const name = input.value.trim();
   if (!name) return eveAlert("Please enter a " + lbl("year level").toLowerCase() + " name", true);
   if (db.students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
     return eveAlert("This " + lbl("year level").toLowerCase() + " is already in the database", true);
   }
-  db.students.push({ name });
+
+  const entry = { name };
+  if (isOrg() && countInput && countInput.value !== "") {
+    const count = Math.max(0, Math.round(parseFloat(countInput.value) || 0));
+    entry.studentCount = count;
+  }
+
+  db.students.push(entry);
   saveData();
   renderStudents();
   input.value = "";
+  if (countInput) countInput.value = "";
 }
 
   /* =========================================================================
@@ -1186,12 +1313,16 @@ async function exportClassFundWeeklyCSV() {
     return;
   }
 
-    list.innerHTML = matches.map(s => `
+    list.innerHTML = matches.map(s => {
+      const countLabel = (isOrg() && typeof s.studentCount === "number")
+        ? ` <span class="note" style="font-weight:600;">(${s.studentCount} student${s.studentCount === 1 ? '' : 's'})</span>`
+        : "";
+      return `
       <div class="card" data-student-name="${esc(s.name)}">
-        <span>${esc(s.name)}</span>
+        <span>${esc(s.name)}${countLabel}</span>
         <button class="del-btn" data-action="delete-student" data-name="${esc(s.name)}">X</button>
-      </div>`
-    ).join("");
+      </div>`;
+    }).join("");
 
     // Attach event listeners instead of inline onclick
     list.querySelectorAll('.card').forEach(card => {
@@ -1219,7 +1350,35 @@ async function exportClassFundWeeklyCSV() {
     document.getElementById("student-list-view").classList.add("hidden");
     document.getElementById("student-profile-view").classList.remove("hidden");
     document.getElementById("profile-student-name").innerText = esc(name);
+
+    const countEditor = document.getElementById("profile-count-editor");
+    if (countEditor) {
+      countEditor.classList.toggle("hidden", !isOrg());
+      const countInput = document.getElementById("profile-student-count");
+      if (countInput) countInput.value = (typeof student.studentCount === "number") ? student.studentCount : "";
+    }
+
     renderStudentProfile(name);
+  }
+
+  function saveStudentCount() {
+    const nameEl = document.getElementById("profile-student-name");
+    const name = nameEl ? nameEl.innerText : "";
+    const student = db.students.find(s => s.name === name);
+    if (!student) return;
+
+    const countInput = document.getElementById("profile-student-count");
+    const val = countInput ? countInput.value.trim() : "";
+
+    if (val === "") {
+      delete student.studentCount;
+    } else {
+      student.studentCount = Math.max(0, Math.round(parseFloat(val) || 0));
+    }
+
+    saveData();
+    renderStudents();
+    eveAlert("Student count saved.");
   }
 
   function backToStudentList() {
@@ -1314,8 +1473,18 @@ function confirmRenameCategory() {
   closeRenameModal();
 }
 
-  function filterCategories() {
-    const input = document.getElementById("category-search").value.toLowerCase();
+function filterCategories() {
+    const inputEl = document.getElementById("category-search");
+    const input = inputEl.value.toLowerCase();
+
+    // If the visible text no longer exactly matches the currently selected
+    // collection, clear the hidden selection so a payment can never be
+    // recorded against a stale/deleted selection.
+    const selectedVal = document.getElementById("category-select").value;
+    if (selectedVal && inputEl.value !== selectedVal) {
+      document.getElementById("category-select").value = "";
+    }
+
     const dropdown = document.getElementById("category-list-dropdown");
     const cats = Object.keys(db.categories).filter(c => c.toLowerCase().includes(input));
     dropdown.innerHTML = "";
@@ -1328,7 +1497,6 @@ function confirmRenameCategory() {
       cats.forEach(c => {
         dropdown.innerHTML += `<div data-cat="${esc(c)}">${esc(c)} <span class="note">(Due: ${peso(db.categories[c].amountDue)})</span></div>`;
       });
-      // Attach listeners
       dropdown.querySelectorAll('div[data-cat]').forEach(div => {
         div.addEventListener('click', () => selectCategory(div.dataset.cat));
       });
@@ -1442,7 +1610,7 @@ function confirmRenameCategory() {
       date: payDate,
       orNumber: "",
       category: "Year Levels Payment",
-      description: `Payment from ${student}`,
+      description: `Payment from ${student} — ${cat}`,
       amount: amountPaying,
       projectId: null,
       notes: note || ""
@@ -1646,6 +1814,135 @@ function deselectAllAddAll() {
     renderItemList();
   }
 
+  function openQuickPayModal() {
+  const catObj = db.categories[currentCategory];
+  if (!catObj || catObj.records.length === 0) {
+    return eveAlert(`No ${lbl("year levels").toLowerCase()} in this collection yet. Add some first (or use "${lbl("Add All Year Level")}").`, true);
+  }
+
+  document.getElementById("quick-pay-noun").innerText = lbl("year levels").toLowerCase();
+  document.getElementById("quick-pay-cat-label").innerText = currentCategory;
+  document.getElementById("quick-pay-modal-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("quick-pay-modal-amount").value = "";
+  document.getElementById("quick-pay-modal-note").value = "";
+  document.getElementById("quick-pay-search").value = "";
+  document.getElementById("quick-pay-status").innerText = "";
+  quickPaySelected.clear();
+  renderQuickPayList();
+  document.getElementById("quick-pay-modal").classList.remove("hidden");
+}
+
+function closeQuickPayModal() {
+  document.getElementById("quick-pay-modal").classList.add("hidden");
+  quickPaySelected.clear();
+}
+
+function selectAllQuickPay() {
+  const search = (document.getElementById("quick-pay-search").value || "").toLowerCase();
+  const catObj = db.categories[currentCategory];
+  if (!catObj) return;
+  catObj.records
+    .filter(r => r.name.toLowerCase().includes(search))
+    .forEach(r => quickPaySelected.add(r.name));
+  renderQuickPayList();
+}
+
+function deselectAllQuickPay() {
+  quickPaySelected.clear();
+  renderQuickPayList();
+}
+
+function renderQuickPayList() {
+  const search = (document.getElementById("quick-pay-search").value || "").toLowerCase();
+  const catObj = db.categories[currentCategory];
+  const box = document.getElementById("quick-pay-list");
+  if (!catObj || !box) return;
+
+  const matches = catObj.records
+    .filter(r => r.name.toLowerCase().includes(search))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (matches.length === 0) {
+    box.innerHTML = `<p class="note">No matching ${lbl("year level").toLowerCase()}.</p>`;
+    return;
+  }
+
+  box.innerHTML = matches.map(r => {
+    const balance = round2(r.due - r.paid);
+    return `
+      <div class="add-all-item ${quickPaySelected.has(r.name) ? 'selected' : ''}" data-name="${esc(r.name)}">
+        <span style="font-weight:500;">${esc(r.name)}<br><span class="note">Balance: ${peso(balance)}</span></span>
+        <div class="check-indicator">${quickPaySelected.has(r.name) ? '✓' : ''}</div>
+      </div>
+    `;
+  }).join("");
+
+  box.querySelectorAll('.add-all-item').forEach(el => {
+    el.addEventListener('click', () => toggleQuickPayCheckbox(el.dataset.name));
+  });
+
+  const statusEl = document.getElementById("quick-pay-status");
+  if (quickPaySelected.size > 0) {
+    statusEl.innerText = `${quickPaySelected.size} selected`;
+    statusEl.style.color = "var(--success)";
+  } else {
+    statusEl.innerText = `Tap a ${lbl("year level").toLowerCase()} to select it`;
+    statusEl.style.color = "var(--muted)";
+  }
+}
+
+function toggleQuickPayCheckbox(name) {
+  if (quickPaySelected.has(name)) quickPaySelected.delete(name);
+  else quickPaySelected.add(name);
+  renderQuickPayList();
+}
+
+function confirmQuickPayModal() {
+  const catObj = db.categories[currentCategory];
+  if (!catObj) return;
+
+  if (quickPaySelected.size === 0) {
+    return eveAlert(`Please select at least one ${lbl("year level").toLowerCase()}.`, true);
+  }
+
+  const amount = round2(parseFloat(document.getElementById("quick-pay-modal-amount").value) || 0);
+  if (amount <= 0) return eveAlert("Please enter a valid amount.", true);
+
+  const dateVal = document.getElementById("quick-pay-modal-date").value || new Date().toISOString().slice(0, 10);
+  const note = document.getElementById("quick-pay-modal-note").value.trim();
+
+  if (!confirm(`Record a payment of ${peso(amount)} for ${quickPaySelected.size} ${lbl("year level").toLowerCase()}(s) in "${currentCategory}"?`)) return;
+
+  let recorded = 0;
+  quickPaySelected.forEach(name => {
+    const rec = catObj.records.find(r => r.name === name);
+    if (!rec) return;
+
+    rec.paid = round2(rec.paid + amount);
+    rec.history.push({ amount, date: dateVal, note: note || "Quick Pay" });
+    recorded++;
+
+    if (isOrg()) {
+      db.cashbook.transactions.push({
+        id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+        type: "income",
+        date: dateVal,
+        orNumber: "",
+        category: "Year Levels Payment",
+        description: `Payment from ${name} — ${currentCategory}`,
+        amount,
+        projectId: null,
+        notes: note || ""
+      });
+    }
+  });
+
+  saveData();
+  closeQuickPayModal();
+  renderItemList();
+  eveAlert(`Recorded ${peso(amount)} payment for ${recorded} ${lbl("year level").toLowerCase()}(s).`);
+}
+
   async function exportCategoryCSV() {
     const catObj = db.categories[currentCategory];
     if (!catObj || catObj.records.length === 0) return eveAlert("No records to export yet.");
@@ -1748,7 +2045,7 @@ if (catObj.records.length === 0) {
      with date, direction (From → To), amount, and optional note.        */
   const txfers = (db.transfers||[]).filter(t => t.from === currentCategory || t.to === currentCategory).sort((a,b)=>a.date.localeCompare(b.date));
   if (txfers.length) {
-    const txferHtml = txfers.map(t => {
+   const txferHtml = txfers.map(t => {
       const isOutgoing = t.from === currentCategory;
       const directionLabel = isOutgoing ? 'Sent to' : 'Received from';
       const otherParty = isOutgoing ? t.to : t.from;
@@ -1760,9 +2057,12 @@ if (catObj.records.length === 0) {
             <span style="font-weight:600; color:#e9f0eb;">${esc(directionLabel)} <b>${esc(otherParty)}</b></span>
             <span class="note">${esc(t.date)}${t.note ? ' • ' + esc(t.note) : ''}</span>
           </div>
-          <span style="color:${color}; font-weight:700; font-family:'IBM Plex Mono',monospace; white-space:nowrap; margin-left:12px;">
-            ${sign}${peso(t.amount)}
-          </span>
+          <div style="display:flex; align-items:center; gap:10px; margin-left:12px;">
+            <span style="color:${color}; font-weight:700; font-family:'IBM Plex Mono',monospace; white-space:nowrap;">
+              ${sign}${peso(t.amount)}
+            </span>
+            <button class="mini-btn mini-delete" data-action="delete-transfer" data-id="${esc(t.id)}">DEL</button>
+          </div>
         </div>`;
     }).join('');
 
@@ -1870,8 +2170,15 @@ if (catObj.records.length === 0) {
     e.stopPropagation();
 
     // Cancel has no data-idx/data-rec, so it must be handled before the idx parse below
+// Cancel has no data-idx/data-rec, so it must be handled before the idx parse below
     if (action === 'cancel-edit') {
       cancelEdit();
+      return;
+    }
+
+    // Transfer log entries use a string id, not a numeric row index
+    if (action === 'delete-transfer') {
+      deleteTransfer(actionEl.dataset.id);
       return;
     }
 
@@ -2839,7 +3146,7 @@ async function exportStatementImage() {
   }
 
   // Initial render on page load
-  window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", () => {
   checkMode();          // <-- NEW: mode must be checked first
   if (!getMode()) return; // Don't render until mode is chosen
 
@@ -2852,6 +3159,7 @@ async function exportStatementImage() {
   loadOrgSettingsForm();
   updateAppHeader();
   resetTxnForm();
+  updateUndoRedoButtons();
 });
 
 /* =========================================================================
@@ -3245,33 +3553,22 @@ function eveInventoryTapInteraction() {
     eveHead.classList.add('is-smiling');
   }, 250);
 
-  // First message
-  msgEl.textContent = "OH HELLO THERE!";
+  // Show message
+  msgEl.textContent = "tap the CLOSE button above to close.";
   if (actionsEl) actionsEl.innerHTML = '';
   speechBubble.classList.remove('alert-active');
   speechBubble.classList.add('show');
 
-  // Hide first bubble after 2.5s
+  // Auto-dismiss after 5s
   bubbleTimer = setTimeout(() => {
-    speechBubble.classList.remove('show');
-
-    // Second bubble pops up after 1s gap
-    bubbleTimer = setTimeout(() => {
-      msgEl.textContent = "tap the CLOSE button above to close.";
-      speechBubble.classList.add('show');
-
-      // Auto-dismiss after 4s
-      bubbleTimer = setTimeout(() => {
-        dismiss();
-        eveHead.classList.remove('is-stretching', 'is-smiling');
-        // Restore inventory look if still open
-        const overlay = document.getElementById("eve-inventory-overlay");
-        if (overlay && !overlay.classList.contains("hidden")) {
-          eveHead.classList.add('is-looking-inventory');
-        }
-      }, 4000);
-    }, 1000);
-  }, 2500);
+    dismiss();
+    eveHead.classList.remove('is-stretching', 'is-smiling');
+    // Restore inventory look if still open
+    const overlay = document.getElementById("eve-inventory-overlay");
+    if (overlay && !overlay.classList.contains("hidden")) {
+      eveHead.classList.add('is-looking-inventory');
+    }
+  }, 5000);
 }
 
   /* --- Ignition --- */
@@ -3318,24 +3615,6 @@ function openEveInventory() {
   openEveGuide(); // default view
 }
 
-function closeEveInventory() {
-  const overlay = document.getElementById("eve-inventory-overlay");
-  if (overlay) overlay.classList.add("hidden");
-  
-  const head = document.getElementById("eveHead");
-  if (head) head.classList.remove("is-looking-inventory");
-  
-  if (eveBlinkInterval) {
-    clearInterval(eveBlinkInterval);
-    eveBlinkInterval = null;
-  }
-  // Hide all inner views so it's fresh next time
-  document.getElementById("eve-calc-view").classList.add("hidden");
-  document.getElementById("eve-guide-view").classList.add("hidden");
-  document.getElementById("eve-summary-view").classList.add("hidden");
-  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
-  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
-}
 
 function _hideAllInventoryViews() {
   const ids = ['eve-calc-view','eve-guide-view','eve-summary-view','eve-logs-view','eve-notes-view','notes-plus-btn'];
@@ -3346,12 +3625,9 @@ function _hideAllInventoryViews() {
 }
 
 function openEveCalc() {
+  _hideAllInventoryViews();
   document.getElementById("eve-calc-view").classList.remove("hidden");
-  document.getElementById("eve-guide-view").classList.add("hidden");
-  document.getElementById("eve-summary-view").classList.add("hidden");
-  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
-  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
-  
+
   const head = document.getElementById("eveHead");
   if (head) {
     head.classList.remove('is-stretching', 'is-smiling');
@@ -3360,12 +3636,9 @@ function openEveCalc() {
 }
 
 function openEveGuide() {
-  document.getElementById("eve-calc-view").classList.add("hidden");
+  _hideAllInventoryViews();
   document.getElementById("eve-guide-view").classList.remove("hidden");
-  document.getElementById("eve-summary-view").classList.add("hidden");
-  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
-  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
-  
+
   const head = document.getElementById("eveHead");
   if (head) {
     head.classList.remove('is-stretching', 'is-smiling');
@@ -3375,18 +3648,30 @@ function openEveGuide() {
 }
 
 function openEveSummary() {
-  document.getElementById("eve-calc-view").classList.add("hidden");
-  document.getElementById("eve-guide-view").classList.add("hidden");
+  _hideAllInventoryViews();
   document.getElementById("eve-summary-view").classList.remove("hidden");
-  document.getElementById("eve-notes-view").classList.add("hidden");      // ADD
-  document.getElementById("notes-plus-btn").classList.add("hidden");      // ADD
-  
+
   const head = document.getElementById("eveHead");
   if (head) {
     head.classList.remove('is-stretching', 'is-smiling');
     head.classList.add('is-looking-inventory');
   }
   renderEveSummary();
+}
+
+function closeEveInventory() {
+  const overlay = document.getElementById("eve-inventory-overlay");
+  if (overlay) overlay.classList.add("hidden");
+
+  const head = document.getElementById("eveHead");
+  if (head) head.classList.remove("is-looking-inventory");
+
+  if (eveBlinkInterval) {
+    clearInterval(eveBlinkInterval);
+    eveBlinkInterval = null;
+  }
+  // Hide all inner views so it's fresh next time
+  _hideAllInventoryViews();
 }
 function renderEveGuide() {
   const box = document.getElementById("eve-guide-view");
@@ -3398,32 +3683,43 @@ function renderEveGuide() {
       <div class="eve-guide-section">
         <h4>➕ Add Tab</h4>
         <p><b>Add Collection Category</b> — Enter a collection name (e.g. "Newsette Fee") and the default amount every year level must pay. Tap <b>Add Collection</b> to create the bucket. This does not enroll year levels yet; it only creates the category.</p>
-        <p><b>Record A Payment</b> — Use the searchable dropdowns to pick an existing <b>Collection</b> and a <b>Year Level</b> from your permanent database. Set the <b>Payment Date</b>, add an optional <b>Note</b>, enter the <b>Amount Paying Now</b>, then tap <b>Record Payment</b>. The student is auto-enrolled into that collection if they weren't already, and the payment instantly syncs to your <b>Cash Book</b> as income.</p>
+        <p><b>Record A Payment</b> — Use the searchable dropdowns to pick an existing <b>Collection</b> and a <b>Year Level</b> from your permanent database. Set the <b>Payment Date</b>, add an optional <b>Note</b>, enter the <b>Amount Paying Now</b>, then tap <b>Record Payment</b>. The Year Level is auto-enrolled into that collection if they weren't already, and the payment instantly syncs to your <b>Cash Book</b> as income.</p>
         <p class="note" style="margin-top:6px;">💡 Year Levels must be added permanently in the <b>Year Level</b> tab before they appear in these dropdowns.</p>
       </div>
 
       <div class="eve-guide-section">
         <h4>🎓 Year Level Tab</h4>
-        <p><b>Add Program & Year Level (Permanent)</b> — Type the name (e.g. "BSIT 2") and tap <b>Add Year Level</b>. This adds the entry to the master database so they can be selected across all collections and the Cash Book.</p>
-        <p><b>Student Database</b> — A searchable list of every year level you have added. The count badge shows how many exist. Tap any card to open their <b>Profile</b>.</p>
-        <p><b>Student Profile</b> — Shows a summary grid (Total Due, Total Paid, Overall Balance) and a <b>Breakdown By Collection</b> listing every collection that student belongs to, their paid/due amounts, and status: <span style="color:var(--success)">PAID</span>, <span style="color:var(--warning)">PARTIAL</span>, <span style="color:var(--danger)">UNPAID</span>, or <span style="color:var(--info)">OVERPAID</span>.</p>
+        <p><b>Add Program & Year Level (Permanent)</b> — Type the name (e.g. "BSIT 2") and optionally enter the <b>Number of Students</b> in that year level, then tap <b>Add Year Level</b>. This adds the entry to the master database so they can be selected across all collections and the Cash Book.</p>
+        <p><b>Student Database</b> — A searchable list of every year level you have added. The count badge shows how many exist. If a year level has a student count set, it appears right next to its name, e.g. <b>"BSIT 2 (67 students)"</b> — handy for seeing enrollment size at a glance. Tap any card to open their <b>Profile</b>.</p>
+        <p><b>Student Profile</b> — Shows a summary grid (Total Due, Total Paid, Overall Balance) and a <b>Breakdown By Collection</b> listing every collection that year level belongs to, their paid/due amounts, and status: <span style="color:var(--success)">PAID</span>, <span style="color:var(--warning)">PARTIAL</span>, <span style="color:var(--danger)">UNPAID</span>, or <span style="color:var(--info)">OVERPAID</span>.</p>
+        <p><b>Number of Students</b> — At the top of the Profile, edit the <b>Number of Students in this Year Level</b> field anytime and tap <b>Save</b> to add, update, or clear the headcount. This is separate from the payment records — it's just a reference figure to know how many students belong to that year level.</p>
+        <p class="note" style="margin-top:6px;">💡 The student count field is only available in Organization mode, since Class mode tracks individual named students rather than year-level groups.</p>
       </div>
 
       <div class="eve-guide-section">
         <h4>📁 Records Tab</h4>
         <p><b>Collections A-Z</b> — All collection categories sorted alphabetically. Tap a letter in the right-side alpha index to jump instantly. Tap a collection card to open its detail view.</p>
         <p><b>Collection Detail</b> — Header shows the collection name. The toolbar has three actions:
-          <br>• <b>+ Add All Year Level</b> — Bulk-enroll students from the database who aren't in this collection yet.
+          <br>• <b>+ Add All Year Level</b> — Bulk-enroll Year Level from the database who aren't in this collection yet.
           <br>• <b>Rename</b> — Change the collection name without losing data.
-          <br>• <b>Export CSV</b> — Download a spreadsheet of all students, dues, paid amounts, balances, and statuses.
+          <br>• <b>Export CSV</b> — Download a spreadsheet of all Year Level, dues, paid amounts, balances, and statuses.
         </p>
         <p><b>Item Summary</b> — Live totals: Collected, Expected, and Remaining Balance for the whole collection.</p>
-        <p><b>Student Rows</b> — Tap any row to enter <b>Edit Mode</b>. Inside edit mode you can:
+        <p><b>Year Level Rows</b> — Tap any row to enter <b>Edit Mode</b>. Inside edit mode you can:
           <br>• Adjust <b>Amount Due</b> or <b>Total Paid</b> manually.
           <br>• Use <b>Quick Pay</b> (date + note + amount) to log a new installment without leaving the page.
           <br>• View <b>Payment History</b> — every past payment is listed. Tap <b>EDIT</b> to change date/amount/note, or <b>DEL</b> to remove it (Total Paid recalculates automatically).
-          <br>• <b>SAVE</b> commits changes. <b>REMOVE FROM LIST</b> deletes the student from this collection only (they stay in the database). <b>CANCEL</b> closes edit mode without saving.
+          <br>• <b>SAVE</b> commits changes. <b>REMOVE FROM LIST</b> deletes the Year Level from this collection only (they stay in the database). <b>CANCEL</b> closes edit mode without saving.
         </p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>⚡ Quick Pay</h4>
+        <p>Inside any collection's detail view, tap the <b>⚡ Quick Pay</b> button below the Collected/Expected/Balance summary to record the <b>same payment for multiple year levels at once</b> — handy when a whole batch pays the same amount on the same day (e.g. everyone paying the ₱50 Newsette Fee together).</p>
+        <p>A full-screen picker opens showing every year level already enrolled in that collection, with their current balance. Use <b>Select All</b>, <b>Deselect All</b>, or the search box to narrow the list, then tap individual entries to check them.</p>
+        <p>Set one <b>Date</b>, one <b>Amount</b>, and an optional <b>Note</b> — this same payment is applied to <b>every selected</b> year level. Tap <b>Record Payment</b> to confirm.</p>
+        <p>Each selected year level gets its own payment history entry (so their individual Payment History still shows it correctly), and in Organization mode every payment is also logged to the <b>Cash Book</b> automatically, just like a normal payment.</p>
+        <p class="note" style="margin-top:6px;">💡 Only year levels already added to that collection appear in the list. Use "Add All Year Level" first if someone is missing.</p>
       </div>
 
       <div class="eve-guide-section">
@@ -3515,6 +3811,15 @@ function renderEveGuide() {
           <br>• <b>Payment History</b> lists every installment. Tap <b>EDIT</b> to modify, or <b>DEL</b> to delete (Total Paid recalculates automatically).
           <br>• <b>SAVE</b> commits your changes. <b>REMOVE FROM LIST</b> removes the student from this collection only (they remain in the database). <b>CANCEL</b> exits without saving.
         </p>
+      </div>
+
+      <div class="eve-guide-section">
+        <h4>⚡ Quick Pay</h4>
+        <p>Inside any collection's detail view, tap the <b>⚡ Quick Pay</b> button below the Collected/Expected/Balance summary to record the <b>same payment for multiple students at once</b> — great for batches paying the same amount on the same day (e.g. everyone paying the ₱50 Field Trip Fee together).</p>
+        <p>A full-screen picker opens showing every student already enrolled in that collection, with their current balance. Use <b>Select All</b>, <b>Deselect All</b>, or search to narrow the list, then tap students to check them.</p>
+        <p>Set one <b>Date</b>, one <b>Amount</b>, and an optional <b>Note</b> — applied to <b>every selected</b> student. Tap <b>Record Payment</b> to confirm.</p>
+        <p>Each selected student gets their own payment history entry, so their individual Payment History still shows the payment correctly.</p>
+        <p class="note" style="margin-top:6px;">💡 Only students already added to that collection appear in the list. Use "Add All Students" first if someone is missing.</p>
       </div>
 
       <div class="eve-guide-section">
@@ -3794,6 +4099,26 @@ function confirmTransfer() {
   eveAlert(`Transferred ${peso(amount)} to "${to}".`);
 }
 
+function deleteTransfer(id) {
+  if (!confirm("Delete this transfer record? This restores the amount to both collections' available balance.")) return;
+  db.transfers = (db.transfers || []).filter(t => String(t.id) !== String(id));
+  saveData();
+
+  // Refresh whichever view(s) are currently showing this data
+  const itemView = document.getElementById('item-view');
+  if (itemView && !itemView.classList.contains('hidden') && currentCategory) {
+    renderItemList();
+  }
+  renderCategories();
+
+  const logsView = document.getElementById('eve-logs-view');
+  if (logsView && !logsView.classList.contains('hidden')) {
+    renderEveLogs();
+  }
+
+  eveAlert("Transfer deleted.");
+}
+
 /* ================= EVE NOTEPAD ================= */
 function openEveNotes() {
   _hideAllInventoryViews();
@@ -3831,6 +4156,17 @@ function renderEveLogs() {
   const txfers = (db.transfers || []).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   let html = '<div style="width:100%;">';
+
+  // ═══ UNDO / REDO ═══
+  html += `<div class="eve-guide-section" style="border-left:3px solid var(--warning); text-align:center;">`;
+  html += `<h4 style="justify-content:center; display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
+  html += `<span class="eve-summary-badge" style="background:var(--warning); color:#1F2A24;">History</span> Undo / Redo</h4>`;
+  html += `<div style="display:flex; gap:12px; justify-content:center; margin-bottom:10px; flex-wrap:wrap;">`;
+  html += `<button id="undo-btn-logs" onclick="performUndo()" ${undoStack.length === 0 ? 'disabled' : ''} style="width:auto; padding:10px 20px; opacity:${undoStack.length === 0 ? '0.4' : '1'};">↺ Undo (<span id="undo-count-logs">${undoStack.length}</span>)</button>`;
+  html += `<button id="redo-btn-logs" onclick="performRedo()" ${redoStack.length === 0 ? 'disabled' : ''} style="width:auto; padding:10px 20px; background:var(--surface); color:var(--ink); border:1.5px solid var(--hairline); opacity:${redoStack.length === 0 ? '0.4' : '1'};">↻ Redo (<span id="redo-count-logs">${redoStack.length}</span>)</button>`;
+  html += `</div>`;
+  html += `<p class="note">Reverts or replays your most recent actions — payments, additions, deletions, transfers, and more. History resets when the app is reloaded.</p>`;
+  html += `</div>`;
 
   // Header stats
   const totalTransferred = round2(txfers.reduce((s, t) => s + t.amount, 0));
@@ -3880,9 +4216,12 @@ function renderEveLogs() {
       html += `</div>`;
       html += `</div>`;
 
-      if (t.note) {
+     if (t.note) {
         html += `<p class="note" style="margin-top:4px; padding-top:6px; border-top:1px solid var(--hairline);">📝 ${esc(t.note)}</p>`;
       }
+      html += `<div style="text-align:right; margin-top:8px;">`;
+      html += `<button class="mini-btn mini-delete" data-action="delete-transfer-log" data-id="${esc(t.id)}">DEL</button>`;
+      html += `</div>`;
       html += `</div>`;
     });
 
@@ -3891,7 +4230,15 @@ function renderEveLogs() {
 
   html += '</div>';
   box.innerHTML = html;
+
+  box.querySelectorAll('[data-action="delete-transfer-log"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTransfer(btn.dataset.id);
+    });
+  });
 }
+
 
 let currentNoteId = null;
 
@@ -3982,4 +4329,3 @@ function deleteNote(noteId) {
   saveData();
   renderNotesList();
 }
-
