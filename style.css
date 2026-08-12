@@ -127,7 +127,7 @@ body {
 .eyebrow {
   text-align: center;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 3px;
   color: var(--accent-2);
@@ -139,7 +139,7 @@ body {
 h2 {
   text-align: center;
   font-family: 'Fraunces', serif;
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 600;
   color: var(--ink);
   margin-bottom: 12px;
@@ -176,7 +176,7 @@ h3, h4 {
   font-family: 'Fraunces', serif;
   font-weight: 600;
   color: var(--accent-dark);
-  font-size: 17px;
+  font-size: 19px;
   letter-spacing: 0.2px;
   position: relative;
   padding-bottom: 8px;
@@ -518,7 +518,7 @@ button:active {
 
 .alpha-header {
   font-family: 'Fraunces', serif;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--accent);
   border-bottom: 2px solid var(--hairline);
@@ -580,7 +580,7 @@ button:active {
   width: auto;
   height: auto;
   padding: 11px 18px;
-  font-size: 12.5px;
+  font-size: 14.5px;
   border-radius: var(--radius-sm);
 }
 
@@ -831,7 +831,7 @@ button:active {
 
 .summary-card h4 {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 1.2px;
@@ -975,7 +975,7 @@ button:active {
   padding: 10px 4px 8px;
   border: none;
   background: none;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   cursor: pointer;
   font-weight: 600;
@@ -1011,7 +1011,7 @@ button:active {
 
 .nav-item span {
   display: block;
-  font-size: 20px;
+  font-size: 22px;
   margin-bottom: 3px;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1502,7 +1502,7 @@ body.style-cyberpunk .device-id-box {
     flex: 1 0 auto;            /* added */
     min-width: 0;              /* added */
     white-space: nowrap;       /* added */
-    font-size: 11px;           /* added: tighter fit */
+    font-size: 13px;           /* added: tighter fit */
     padding: 10px 14px;        /* added: tighter fit */
   }
 
@@ -1526,19 +1526,19 @@ body.style-cyberpunk .device-id-box {
   }
 
   h2 {
-    font-size: 22px;
+    font-size: 24px;
   }
 
   h3, h4 {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .nav-item {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   .nav-item span {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .top-bar {
@@ -1949,8 +1949,8 @@ body.style-cyberpunk .fullscreen-overlay {
   position: fixed;
   bottom: calc(68px + env(safe-area-inset-bottom));
   left: 14px;
-  width: 126px;
-  height: 126px;
+  width: 63px;          /* was 126px */
+  height: 63px;         /* was 126px */
   z-index: 999;
   overflow: visible;
   pointer-events: none;
@@ -1962,10 +1962,9 @@ body.style-cyberpunk .fullscreen-overlay {
   left: 0;
   width: 350px;
   height: 350px;
-  transform: scale(0.36);
+  transform: scale(0.24);   /* was 0.36 */
   transform-origin: bottom left;
   pointer-events: auto;
-  /* smooth hide / show animation */
   transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
               opacity 0.4s ease;
 }
@@ -2076,13 +2075,13 @@ body.style-cyberpunk .fullscreen-overlay {
 
 .eve-bot .speech-bubble {
   position: absolute;
-  top: -100px;
-  left: 50%;
+  top: -120px;           /* was -100px */
+  left: 100%;
   background: rgba(255, 255, 255, 0.96);
   color: #0b1424;
-  padding: 12px 16px 10px;
+  padding: 13px 10px 8px;   /* was 12px 16px 10px */
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 13px;      /* was 11.5px */
   line-height: 1.45;
   border-radius: 16px;
   box-shadow: 0 6px 20px rgba(57, 255, 20, 0.25), 0 3px 8px rgba(0,0,0,0.15);
@@ -2092,10 +2091,11 @@ body.style-cyberpunk .fullscreen-overlay {
   z-index: 1000;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   white-space: normal;
-  max-width: 200px;
-  min-width: 140px;
+  max-width: 120px;     /* was 200px */
+  min-width: 140px;     /* was 140px */
   text-align: center;
 }
+
 
 .eve-bot .speech-bubble::after {
   content: '';
@@ -2246,15 +2246,15 @@ body.style-cyberpunk .eve-bot .eve-head {
 
 .eve-idle-toggle {
   position: absolute;
-  bottom: 4px;
-  left: 4px;
-  width: 26px;
-  height: 26px;
+  bottom: -3px;          /* was 4px */
+  left: -3px;            /* was 4px */
+  width: 20px;          /* was 26px */
+  height: 20px;         /* was 26px */
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.9);
+  border: 2px solid #8cf8fce6;
   background: #2F7D53;
-  color: white;
-  font-size: 10px;
+  color: #8cf8fce6;
+  font-size: 7px;       /* was 10px */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2290,10 +2290,10 @@ body.style-cyberpunk .eve-idle-toggle.stopped {
 
 .eve-hint {
   position: absolute;
-  bottom: 9px;
-  left: 34px;
+  bottom: 4px;          /* was 9px */
+  left: 18px;           /* was 34px */
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: 8px;       /* was 10px */
   font-weight: 500;
   color: var(--muted);
   opacity: 0.75;
@@ -2426,16 +2426,19 @@ body.style-cyberpunk .eve-zipper::after {
 /* REPLACE the existing .hex-hive block */
 .hex-hive {
   position: absolute;
-  left: 18px;                              /* align with silence button left edge */
-  bottom: calc(4px + env(safe-area-inset-bottom)); /* sit just above bottom / safe-area */
-  width: auto;
+  left: 50%;
+  bottom: calc(4px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100% - 36px);
+  max-width: 420px;
   height: auto;
   z-index: 1001;
   pointer-events: none;
   display: flex;
-  flex-direction: row;
-  gap: 10px;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
 
 .hex-cell {
@@ -2485,15 +2488,15 @@ body.style-cyberpunk .eve-zipper::after {
 }
 
 /* Calculator */
-.calc-body { max-width: 420px; margin: 0 auto; }
+.calc-body { max-width: 560px; margin: 0 auto; }
 
 .calc-display {
   background: rgba(0,0,0,0.35);
   border: 1.5px solid var(--hairline-strong);
   border-radius: var(--radius-sm);
-  padding: 20px;
+  padding: 28px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 36px;
+  font-size: 48px;
   text-align: right;
   color: #e9f0eb;
   text-shadow: 0 0 12px rgba(233,240,235,0.3);
@@ -2504,13 +2507,13 @@ body.style-cyberpunk .eve-zipper::after {
 .calc-keys {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
 .calc-keys button {
-  height: 64px;
+  height: 84px;
   padding: 0;
-  font-size: 22px;
+  font-size: 28px;
   background: linear-gradient(135deg, #3a4a42, #2a3830);
   color: #e9f0eb;
   border: 1.5px solid rgba(255,255,255,0.08);
@@ -2540,11 +2543,11 @@ body.style-cyberpunk .eve-zipper::after {
   font-family: 'Fraunces', serif;
   color: var(--accent-2);
   margin-bottom: 6px;
-  font-size: 14px;
+  font-size: 16px;
 }
 .eve-guide-section p {
   color: #9da3a0;
-  font-size: 12.5px;
+  font-size: 14.5px;
   line-height: 1.6;
   margin: 0 0 8px;
 }
@@ -2556,12 +2559,13 @@ body.style-cyberpunk .eve-zipper::after {
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
-    .hex-hive {
-    left: 18px;
+.hex-hive {
+    left: 50%;
     bottom: calc(4px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+    max-width: 340px;
     gap: 8px;
-    flex-wrap: wrap;
-    max-width: calc(100% - 36px);
   }
   .hex-cell {
     width: 72px;
@@ -2582,7 +2586,7 @@ body.style-cyberpunk .eve-zipper::after {
 }
 .eve-summary-card h4 {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #8FA096;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -2681,4 +2685,190 @@ body.style-cyberpunk .eve-zipper::after {
 /* "No notes yet" message */
 #eve-inventory-overlay #notes-folder-list > .note {
   color: #8fa096;
+}
+
+.right-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.undo-redo-group {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-toggle:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none !important;
+}
+
+.icon-toggle:disabled:hover {
+  transform: none !important;
+  box-shadow: none;
+  border-color: var(--hairline);
+}
+
+/* =========================================================================
+   EVE INVENTORY — LIGHT MODE OVERRIDES (richer gradients + darker text)
+   ========================================================================= */
+
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay {
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(184, 135, 47, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(31, 93, 66, 0.06) 0%, transparent 55%),
+    rgba(244, 242, 236, 0.94);
+}
+
+/* ── Guide sections & paragraphs ── */
+body:not(.theme-dark):not(.style-cyberpunk) .eve-guide-section {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-alt) 55%, #ede7d8 100%);
+  border-color: var(--hairline-strong);
+  box-shadow: var(--shadow-sm);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-guide-section h4 {
+  color: var(--accent-dark);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-guide-section p {
+  color: #1A241F;  /* darker — near black-green */
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-guide-section p b {
+  color: #0F1A14;  /* even darker for bold */
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-guide-section .note {
+  color: #3A453E;  /* slightly lighter for helper text */
+}
+
+/* ── Summary cards ── */
+body:not(.theme-dark):not(.style-cyberpunk) .eve-summary-card {
+  background: linear-gradient(150deg, var(--surface) 0%, var(--surface-alt) 50%, #e9e2d1 100%);
+  border-color: var(--hairline);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  opacity: 0.6;
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-summary-card h4 {
+  color: #5A665D;
+}
+body:not(.theme-dark):not(.style-cyberpunk) .eve-summary-card p {
+  color: var(--ink);
+}
+
+/* ── Hex menu buttons (Calc / Guide / Data / Notes / Logs) ── */
+body:not(.theme-dark):not(.style-cyberpunk) .hex-cell {
+  background: linear-gradient(145deg, #ffffff 0%, var(--surface-alt) 45%, #e5dcc7 100%);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(31, 93, 66, 0.08) inset;
+}
+body:not(.theme-dark):not(.style-cyberpunk) .hex-cell:hover {
+  background: linear-gradient(145deg, var(--surface-alt) 0%, #e7dfcc 50%, #dccdaa 100%);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(31, 93, 66, 0.15) inset;
+  border-color: var(--accent-dark);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .hex-inner {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+/* ── Calculator ── */
+body:not(.theme-dark):not(.style-cyberpunk) .calc-display {
+  background: #ffffff;
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+  text-shadow: none;
+  box-shadow: inset 0 2px 8px rgba(31, 42, 36, 0.10);
+}
+
+/* Regular keys — same background as guide/hex buttons */
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button {
+  background: linear-gradient(145deg, #ffffff 0%, var(--surface-alt) 45%, #e5dcc7 100%);
+  color: #000000;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:hover {
+  background: linear-gradient(145deg, var(--surface-alt) 0%, #e7dfcc 50%, #dccdaa 100%);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:active {
+  background: linear-gradient(150deg, #dccdaa 0%, #d3c39c 100%);
+}
+
+/* = , C , and ⌫ — solid green */
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys .calc-eq,
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:nth-child(1),
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:nth-child(4) {
+  background: linear-gradient(145deg, var(--accent) 0%, var(--accent-dark) 60%, #123321 100%);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys .calc-eq:hover,
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:nth-child(1):hover,
+body:not(.theme-dark):not(.style-cyberpunk) .calc-keys button:nth-child(4):hover {
+  background: linear-gradient(145deg, var(--accent-dark) 0%, #123321 100%);
+}
+
+/* ── Notes ── */
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #note-editor-title,
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #note-editor-body {
+  background: linear-gradient(160deg, #ffffff 0%, var(--surface) 60%, #f7f4ec 100%);
+  color: var(--ink);
+  border-color: var(--hairline);
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #note-editor-title::placeholder,
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #note-editor-body::placeholder {
+  color: #8A9389;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #notes-folder-list .add-all-item {
+  background: linear-gradient(150deg, var(--surface) 0%, var(--surface-alt) 55%, #ede5d3 100%);
+  border-color: var(--hairline);
+  color: var(--ink);
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #notes-folder-list .add-all-item:hover {
+  background: linear-gradient(150deg, var(--surface-alt) 0%, #e7dfcc 60%, #dccdaa 100%);
+  border-color: var(--accent);
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #notes-folder-list .add-all-item span {
+  color: var(--ink);
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay .note,
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #notes-folder-list > .note,
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay #notes-editor label.note {
+  color: #4E5A52;
+}
+
+/* ── JS-generated inline styles (Guide/Data/Logs content) ──
+   These write hardcoded dark hex values directly into the markup string.
+   Attribute selectors catch and override them since classes can't be
+   added to dynamically-built HTML without editing every render function. */
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="E9F0EB" i] {
+  color: var(--ink) !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="8FA096" i] {
+  color: #4E5A52 !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="rgba(255,255,255,0.03)" i] {
+  background: linear-gradient(150deg, var(--surface-alt) 0%, #ede5d3 60%, #e2d8c0 100%) !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="rgba(233,240,235," i] {
+  border-color: var(--hairline-strong) !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="141c18" i] {
+  background: linear-gradient(150deg, #ffffff 0%, var(--surface) 55%, #ede5d3 100%) !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="1a2420" i] {
+  background: linear-gradient(150deg, var(--surface-alt) 0%, #e7dfcc 60%, #dccdaa 100%) !important;
+}
+body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="e9f0eb" i] {
+  color: var(--ink) !important;
 }
