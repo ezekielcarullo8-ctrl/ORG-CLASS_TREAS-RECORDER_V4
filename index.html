@@ -18,7 +18,13 @@
 
     <button id="mode-toggle" class="icon-toggle" onclick="switchMode()" title="Switch Org / Class mode" style="font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; width:auto; padding:0 14px; border-radius:20px;">ORG</button>
   </div>
-  <span class="watermark">@EVC</span>
+  <div class="right-group">
+    <div class="undo-redo-group">
+      <button id="undo-btn" class="icon-toggle" onclick="performUndo()" title="Undo last action" disabled>↺</button>
+      <button id="redo-btn" class="icon-toggle" onclick="performRedo()" title="Redo last action" disabled>↻</button>
+    </div>
+    <span class="watermark">@EVC</span>
+  </div>
 </div>
 
 <!-- ACTIVATION LOCK OVERLAY (device-bound, prevents unauthorized copies) -->
@@ -98,6 +104,37 @@
   </div>
 </div>
 
+<!-- QUICK PAY MODAL -->
+<div id="quick-pay-modal" class="activation-overlay hidden">
+  <div class="activation-card" style="max-width: 520px; width: 100%; padding: 28px 24px;">
+    <div class="item-header" style="border:none; padding-bottom:10px; margin-bottom:6px;">
+      <h3 style="margin-bottom:0; padding-bottom:0;">Quick Pay</h3>
+      <button onclick="closeQuickPayModal()" style="width:auto; height:auto; padding:8px 16px; font-size:13px;">✕ Close</button>
+    </div>
+    <p class="note" style="margin-bottom:14px;">Record the same payment for multiple <span id="quick-pay-noun">year levels</span> in <b id="quick-pay-cat-label">this collection</b> at once.</p>
+
+    <div class="row" style="margin-bottom:10px;">
+      <input type="date" id="quick-pay-modal-date">
+      <input type="number" id="quick-pay-modal-amount" placeholder="Amount per student" step="0.01">
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <input type="text" id="quick-pay-modal-note" placeholder="Note (optional)">
+    </div>
+
+    <div class="row" style="margin-bottom:10px; gap:8px;">
+      <input type="text" id="quick-pay-search" placeholder="Search..." oninput="renderQuickPayList()" style="flex:1; margin-bottom:0;">
+      <button onclick="selectAllQuickPay()" style="width:auto; padding:0 16px; white-space:nowrap;">Select All</button>
+      <button onclick="deselectAllQuickPay()" style="width:auto; padding:0 16px; white-space:nowrap; background:var(--surface); color:var(--ink); border:1.5px solid var(--hairline);">Deselect All</button>
+    </div>
+    <div id="quick-pay-list" style="max-height: 45vh; overflow-y: auto; margin-bottom: 18px; padding-right: 4px;"></div>
+    <div class="row" style="margin-bottom:0; gap:12px;">
+      <button class="full-btn" onclick="confirmQuickPayModal()" style="flex:1; margin-top:0;">Record Payment</button>
+      <button class="full-btn btn-cancel" onclick="closeQuickPayModal()" style="flex:1; margin-top:0;">Cancel</button>
+    </div>
+    <p class="note" id="quick-pay-status" style="margin-top:12px; text-align:center; font-weight:600;"></p>
+  </div>
+</div>
+
 <!-- RENAME COLLECTION MODAL -->
 <div id="rename-modal" class="activation-overlay hidden">
   <div class="activation-card" style="max-width: 420px;">
@@ -167,6 +204,9 @@
       <!-- In DATABASE tab, replace the first h3: -->
 <h3 id="db-add-header">Add Program & Year Level (Permanent)</h3>
       <input type="text" id="new-student-name" placeholder="e.g BSIT 2">
+      <div id="new-student-count-wrapper" class="hidden">
+        <input type="number" id="new-student-count" placeholder="Number of Students (optional)" min="0" step="1">
+      </div>
       <button class="full-btn" onclick="addStudent()">Add Year Level</button>
 
       <hr class="section-divider">
@@ -186,6 +226,13 @@
         <button onclick="backToStudentList()">← Back</button>
         <h3 id="profile-student-name">STUDENT NAME</h3>
         <div></div>
+      </div>
+      <div id="profile-count-editor" class="hidden" style="margin-bottom:18px; background:linear-gradient(135deg, var(--surface), var(--surface-alt)); border:1px solid var(--hairline); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow-sm);">
+        <p class="note" style="margin-bottom:10px;"><b>Number of Students in this Year Level</b></p>
+        <div class="row" style="margin-bottom:0;">
+          <input type="number" id="profile-student-count" placeholder="e.g. 67" min="0" step="1" style="margin-bottom:0;">
+          <button onclick="saveStudentCount()" style="width:auto; padding:0 20px; white-space:nowrap;">Save</button>
+        </div>
       </div>
       <div id="profile-summary" class="summary-grid"></div>
       <h3>Breakdown By Collection</h3>
@@ -219,6 +266,9 @@
       </div>
       <input type="text" id="item-search" placeholder="Search year level in this collection..." oninput="renderItemList()" style="margin-bottom:15px;">
       <div id="item-summary" class="item-summary"></div>
+      <div class="row row-center" style="margin-bottom:18px;">
+        <button onclick="openQuickPayModal()" style="width:auto; padding:0 28px; background: linear-gradient(135deg, var(--success), var(--accent));">Quick Pay</button>
+      </div>
       <div class="inside-box-full">
         <p class="note">Tap program year level to add a payment or edit</p>
         <div id="item-list"></div>
