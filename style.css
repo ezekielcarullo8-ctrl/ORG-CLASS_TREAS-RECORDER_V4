@@ -2872,3 +2872,49 @@ body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="1a24
 body:not(.theme-dark):not(.style-cyberpunk) #eve-inventory-overlay [style*="e9f0eb" i] {
   color: var(--ink) !important;
 }
+
+/* ================= SUPER BLACK STATEMENT ================= */
+.statement-print-area,
+.statement-print-area * {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.statement-print-area {
+  background: #ffffff !important;
+  border: 2px solid #000000 !important;
+  box-shadow: none !important;
+}
+
+.statement-header {
+  border-bottom: 2px solid #000000 !important;
+}
+
+.statement-row {
+  border-bottom: 1px solid #000000 !important;
+}
+
+.statement-subtotal {
+  border-top: 2px solid #000000 !important;
+}
+
+.statement-final {
+  border-top: 3px solid #000000 !important;
+  font-weight: 900 !important;
+}
+
+.sig-line {
+  border-top: 2px solid #000000 !important;
+}
+
+/* Override theme-dark / cyberpunk bleed into the statement */
+body.theme-dark .statement-print-area,
+body.theme-dark .statement-print-area *,
+body.style-cyberpunk .statement-print-area,
+body.style-cyberpunk .statement-print-area * {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  background: #ffffff !important;
+  border-color: #000000 !important;
+  text-shadow: none !important;
+}
